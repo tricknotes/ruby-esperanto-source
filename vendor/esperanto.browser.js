@@ -1,5 +1,5 @@
 /*
-	esperanto.js v0.6.9 - 2015-02-06
+	esperanto.js v0.6.10 - 2015-02-09
 	http://esperantojs.org
 
 	Released under the MIT License.
@@ -1766,7 +1766,7 @@
 		toUmd: transpileMethod( 'umd' ),
 
 		bundle: function ( options ) {
-			return undefined__default( options ).then( function ( bundle ) {
+			return getBundle( options ).then( function ( bundle ) {
 				return {
 					imports: bundle.externalModules.map( function(mod ) {return mod.id} ),
 					exports: flattenExports( bundle.entryModule.exports ),
