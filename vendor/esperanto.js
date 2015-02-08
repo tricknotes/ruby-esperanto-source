@@ -1,5 +1,5 @@
 /*
-	esperanto.js v0.6.10 - 2015-02-09
+	esperanto.js v0.6.11 - 2015-02-08
 	http://esperantojs.org
 
 	Released under the MIT License.
@@ -1294,7 +1294,7 @@ function combine ( bundle ) {
 		});
 
 		body.addSource({
-			filename: path.resolve( bundle.base, mod.file ),
+			filename: path.resolve( bundle.base, mod.relativePath ),
 			content: transformBody__transformBody( bundle, mod, mod.body.clone() ),
 			indentExclusionRanges: mod.ast._templateLiteralRanges
 		});
@@ -1419,7 +1419,7 @@ function getBundle ( options ) {
 					module = getModule({
 						source: source,
 						id: moduleId,
-						file: modulePath.substring( base.length ),
+						relativePath: path.relative( base, modulePath ),
 						path: modulePath
 					});
 
@@ -1427,7 +1427,7 @@ function getBundle ( options ) {
 					moduleLookup[ moduleId ] = module;
 
 					promises = module.imports.map( function(x ) {
-						x.id = resolveId( x.path, module.file );
+						x.id = resolveId( x.path, module.relativePath );
 
 						if ( x.id === moduleId ) {
 							throw new Error( 'A module (' + moduleId + ') cannot import itself' );
@@ -1474,9 +1474,9 @@ function getBundle ( options ) {
 }
 
 function resolvePath ( base, moduleId, importerPath, resolver ) {
-	return tryPath( base + moduleId + '.js' )
+	return tryPath( path.resolve( base, moduleId + '.js' ) )
 		.catch( function () {
-			return tryPath( base + moduleId + path.sep + 'index.js' );
+			return tryPath( path.resolve( base, moduleId, 'index.js' ) );
 		})
 		.catch( function ( err ) {
 			if ( resolver ) {

@@ -11,8 +11,6 @@ module Esperanto
         %w(
           acorn.js
           estraverse.js
-          vlq.js
-          magic-string.js
           esperanto.browser.js
         ).map {|js| bundled_path_for(js) }
       end
