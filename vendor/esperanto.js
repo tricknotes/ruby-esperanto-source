@@ -1,5 +1,5 @@
 /*
-	esperanto.js v0.6.13 - 2015-02-16
+	esperanto.js v0.6.14 - 2015-02-26
 	http://esperantojs.org
 
 	Released under the MIT License.
@@ -1555,17 +1555,26 @@ function packageResult ( body, options, methodName, isBundle ) {
 	code = body.toString();
 
 	if ( !!options.sourceMap ) {
-		if ( !options.sourceMapFile || ( !isBundle && !options.sourceMapSource )  ) {
-			throw new Error( 'You must provide `sourceMapSource` and `sourceMapFile` options' );
+		if ( options.sourceMap !== 'inline' && !options.sourceMapFile) {
+			throw new Error( 'You must provide `sourceMapFile` option' );
 		}
 
-		var sourceMapFile = isAbsolutePath( options.sourceMapFile ) ? options.sourceMapFile : './' + splitPath( options.sourceMapFile ).pop();
+		if ( !isBundle && !options.sourceMapSource ) {
+			throw new Error( 'You must provide `sourceMapSource` option' );
+		}
+
+		var sourceMapFile;
+		if (options.sourceMap === 'inline') {
+			sourceMapFile = null;
+		} else {
+			sourceMapFile = isAbsolutePath( options.sourceMapFile ) ? options.sourceMapFile : './' + splitPath( options.sourceMapFile ).pop();
+		}
 
 		map = body.generateMap({
 			includeContent: true,
 			hires: true,
 			file: sourceMapFile,
-			source: !isBundle ? getRelativePath( sourceMapFile, options.sourceMapSource ) : null
+			source: (sourceMapFile && !isBundle) ? getRelativePath( sourceMapFile, options.sourceMapSource ) : null
 		});
 
 		if ( options.sourceMap === 'inline' ) {
