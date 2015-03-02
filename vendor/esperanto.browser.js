@@ -1,5 +1,5 @@
 /*
-	esperanto.js v0.6.15 - 2015-02-26
+	esperanto.js v0.6.16 - 2015-03-02
 	http://esperantojs.org
 
 	Released under the MIT License.
@@ -1148,11 +1148,11 @@
 			x.isEmpty = true;
 		} else if ( x.specifiers.length === 1 && x.specifiers[0].isDefault ) {
 			x.isDefault = true;
-			x.name = x.specifiers[0].as;
+			x.as = x.specifiers[0].as;
 
 		} else if ( x.specifiers.length === 1 && x.specifiers[0].isBatch ) {
 			x.isBatch = true;
-			x.name = x.specifiers[0].name;
+			x.as = x.specifiers[0].name;
 		} else {
 			x.isNamed = true;
 		}
@@ -1297,6 +1297,32 @@
 		return unscoped;
 	}
 
+	function disallowConflictingImports ( imports ) {
+		var usedNames = {};
+
+		imports.forEach( function(x ) {
+			if ( x.as ) {
+				checkName( x.as );
+			}
+
+			else {
+				x.specifiers.forEach( checkSpecifier );
+			}
+		});
+
+		function checkSpecifier ( s ) {
+			checkName( s.as );
+		}
+
+		function checkName ( name ) {
+			if ( hasOwnProp.call( usedNames, name ) ) {
+				throw new SyntaxError( (("Duplicated import ('" + name) + "')") );
+			}
+
+			usedNames[ name ] = true;
+		}
+	}
+
 	var reserved = 'break case class catch const continue debugger default delete do else export extends finally for function if import in instanceof let new return super switch this throw try typeof var void while with yield'.split( ' ' );
 
 	/**
@@ -1322,17 +1348,52 @@
 		return path.split( pathSplitRE );
 	}
 
-	function getModuleNameHelper ( userFn ) {var usedNames = arguments[1];if(usedNames === void 0)usedNames = {};
-		var nameById = {}, getModuleName;
+	function getStandaloneModule ( options ) {var $D$0;
+		var mod, imports, exports, conflicts = {};
 
-		getModuleName = function(x ) {
+		mod = {
+			body: new MagicString( options.source ),
+			ast: acorn.parse( options.source, {
+				ecmaVersion: 6,
+				locations: true
+			})
+		};
+
+		imports = ($D$0 = findImportsAndExports( mod, options.source, mod.ast ))[0], exports = $D$0[1], $D$0;
+
+		disallowConflictingImports( imports );
+
+		mod.imports = imports;
+		mod.exports = exports;
+
+		if ( options.strict ) {
+			annotateAst( mod.ast );
+
+			// TODO there's probably an easier way to get this array
+			Object.keys( mod.ast._declared ).concat( getUnscopedNames( mod ) ).forEach( function(n ) {
+				conflicts[n] = true;
+			});
+		}
+
+		determineImportNames( imports, options.getModuleName, conflicts );
+
+		return mod;
+	;$D$0 = void 0}
+
+	function determineImportNames ( imports, userFn, usedNames ) {
+		var nameById = {}, inferredNames = {};
+
+		usedNames = usedNames || {};
+
+		imports.forEach( function(x ) {
 			var moduleId, parts, i, prefix = '', name, candidate;
 
 			moduleId = x.path;
 
 			// use existing value
 			if ( hasOwnProp.call( nameById, moduleId ) ) {
-				return nameById[ moduleId ];
+				x.name = nameById[ moduleId ];
+				return;
 			}
 
 			// if user supplied a function, defer to it
@@ -1345,16 +1406,12 @@
 				}
 			}
 
-			else if ( x.isDefault || x.isBatch ) {
-				name = x.name;
-			}
-
 			else {
 				parts = splitPath( moduleId );
-				i = parts.length;
 
 				do {
-					while ( i-- ) {
+					i = parts.length;
+					while ( i-- > 0 ) {
 						candidate = prefix + sanitize( parts.slice( i ).join( '__' ) );
 
 						if ( !hasOwnProp.call( usedNames, candidate ) ) {
@@ -1370,44 +1427,23 @@
 			usedNames[ name ] = true;
 			nameById[ moduleId ] = name;
 
-			return name;
-		};
+			x.name = name;
+		});
 
-		return getModuleName;
+		// use inferred names for default imports, wherever they
+		// don't clash with path-based names
+		imports.forEach( function(x ) {
+			if ( x.as && !hasOwnProp.call( usedNames, x.as ) ) {
+				inferredNames[ x.path ] = x.as;
+			}
+		});
+
+		imports.forEach( function(x ) {
+			if ( hasOwnProp.call( inferredNames, x.path ) ) {
+				x.name = inferredNames[ x.path ];
+			}
+		});
 	}
-
-	function getStandaloneModule ( options ) {var $D$0;
-		var mod, imports, exports, conflicts = {};
-
-		mod = {
-			body: new MagicString( options.source ),
-			ast: acorn.parse( options.source, {
-				ecmaVersion: 6,
-				locations: true
-			})
-		};
-
-		imports = ($D$0 = findImportsAndExports( mod, options.source, mod.ast ))[0], exports = $D$0[1], $D$0;
-
-
-		mod.imports = imports;
-		mod.exports = exports;
-
-		if ( options.strict ) {
-			annotateAst( mod.ast );
-
-			// TODO there's probably an easier way to get this array
-			Object.keys( mod.ast._declared ).concat( getUnscopedNames( mod ) ).forEach( function(n ) {
-				conflicts[n] = true;
-			});
-		} else {
-			conflicts = mod.ast._declared;
-		}
-
-		mod.getName = getModuleNameHelper( options.getModuleName, conflicts );
-
-		return mod;
-	;$D$0 = void 0}
 
 	function transformExportDeclaration ( declaration, body ) {
 		var exportedValue;
@@ -1627,12 +1663,12 @@
 			if ( !hasOwnProp.call( seen, path ) ) {
 				importPaths.push( path );
 
-				if ( x.name ) {
+				if ( x.as ) {
 					while ( placeholders ) {
 						importNames.push( '__dep' + importNames.length + '__' );
 						placeholders--;
 					}
-					importNames.push( x.name );
+					importNames.push( x.as );
 				} else {
 					placeholders++;
 				}
@@ -1666,7 +1702,7 @@
 
 		mod.imports.forEach( function(x ) {
 			if ( !hasOwnProp.call( seen, x.path ) ) {
-				var replacement = x.isEmpty ? (("" + (req(x.path))) + ";") : (("var " + (x.name)) + (" = " + (req(x.path))) + ";");
+				var replacement = x.isEmpty ? (("" + (req(x.path))) + ";") : (("var " + (x.as)) + (" = " + (req(x.path))) + ";");
 				body.replace( x.start, x.end, replacement );
 
 				seen[ x.path ] = true;
@@ -1797,12 +1833,12 @@
 				if ( !hasOwnProp.call( seen, x.path ) ) {
 					importPaths.push( x.path );
 
-					if ( x.name ) {
+					if ( x.as ) {
 						while ( placeholders ) {
 							importNames.push( '__dep' + importNames.length + '__' );
 							placeholders--;
 						}
-						importNames.push( x.name );
+						importNames.push( x.as );
 					} else {
 						placeholders++;
 					}
@@ -1836,12 +1872,10 @@
 		umd: umd__umd
 	};
 
-	function gatherImports ( imports, getName ) {
+	function gatherImports ( imports ) {
 		var chains = {}, identifierReplacements = {};
 
 		imports.forEach( function(x ) {
-			var moduleName = getName( x );
-
 			x.specifiers.forEach( function(s ) {
 				var name, replacement;
 
@@ -1850,7 +1884,7 @@
 				}
 
 				name = s.as;
-				replacement = moduleName + ( s.isDefault ? ("['default']") : ("." + (s.name)) );
+				replacement = x.name + ( s.isDefault ? ("['default']") : ("." + (s.name)) );
 
 				if ( !x.passthrough ) {
 					identifierReplacements[ name ] = replacement;
@@ -2077,7 +2111,7 @@
 			earlyExports,
 			lateExports;
 
-		chains = ($D$1 = gatherImports( mod.imports, mod.getName ))[0], identifierReplacements = $D$1[1], $D$1;
+		chains = ($D$1 = gatherImports( mod.imports ))[0], identifierReplacements = $D$1[1], $D$1;
 		exportNames = getExportNames( mod.exports );
 
 		importedBindings = ($D$1 = getReadOnlyIdentifiers( mod.imports ))[0], importedNamespaces = $D$1[1], $D$1;
@@ -2195,7 +2229,7 @@
 						importNames.push( '__dep' + importNames.length + '__' );
 						placeholders--;
 					}
-					importNames.push( mod.getName( x ) );
+					importNames.push( x.name );
 				} else {
 					placeholders++;
 				}
@@ -2249,8 +2283,7 @@
 				if ( x.isEmpty ) {
 					replacement = (("" + (req(x.path))) + ";");
 				} else {
-					name = mod.getName( x );
-					replacement = (("var " + name) + (" = " + (req(x.path))) + ";");
+					replacement = (("var " + (x.name)) + (" = " + (req(x.path))) + ";");
 				}
 
 				seen[ x.path ] = true;
