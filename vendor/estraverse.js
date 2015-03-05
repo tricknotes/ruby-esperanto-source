@@ -145,9 +145,11 @@
     };
 
     function extend(to, from) {
-        objectKeys(from).forEach(function (key) {
+        var keys = objectKeys(from), key, i, len;
+        for (i = 0, len = keys.length; i < len; i += 1) {
+            key = keys[i];
             to[key] = from[key];
-        });
+        }
         return to;
     }
 
@@ -828,7 +830,7 @@
         return tree;
     }
 
-    exports.version = '1.9.2';
+    exports.version = '1.9.3';
     exports.Syntax = Syntax;
     exports.traverse = traverse;
     exports.replace = replace;
