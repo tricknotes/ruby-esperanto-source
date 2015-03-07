@@ -22,8 +22,8 @@ class TestEsperantoSource < MiniTest::Test
   end
 
   def test_bundled_files_executable
-    source = Esperanto::Source.bundled_paths.map {|path| File.read(path) }.join
-    context = ExecJS::Runtimes::Node.compile(source) # Currently, other runtimes are not supported.
+    source = Esperanto::Source.bundled_source
+    context = ExecJS.compile(source)
 
     assert { context.eval('typeof esperanto') == 'object' }
   end
