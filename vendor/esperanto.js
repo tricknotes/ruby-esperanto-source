@@ -1,5 +1,5 @@
 /*
-	esperanto.js v0.6.21 - 2015-03-30
+	esperanto.js v0.6.22 - 2015-03-30
 	http://esperantojs.org
 
 	Released under the MIT License.
@@ -514,11 +514,11 @@ function disallowConflictingImports ( imports ) {
 	var usedNames = {};
 
 	imports.forEach( function(x ) {
+		if ( x.passthrough ) return;
+
 		if ( x.as ) {
 			checkName( x.as );
-		}
-
-		else {
+		} else {
 			x.specifiers.forEach( checkSpecifier );
 		}
 	});
