@@ -1,5 +1,5 @@
 /*
-	esperanto.js v0.6.18 - 2015-03-30
+	esperanto.js v0.6.19 - 2015-03-30
 	http://esperantojs.org
 
 	Released under the MIT License.
@@ -1400,12 +1400,21 @@ function getModule ( mod ) {var $D$1;
 
 	mod.body = new MagicString( mod.source );
 
+	var toRemove = [];
+
 	try {
 		mod.ast = acorn.parse( mod.source, {
 			ecmaVersion: 6,
-			sourceType: 'module'
+			sourceType: 'module',
+			onComment: function ( block, text, start, end ) {
+				// sourceMappingURL comments should be removed
+				if ( !block && /^# sourceMappingURL=/.test( text ) ) {
+					toRemove.push({ start: start, end: end });
+				}
+			}
 		});
 
+		toRemove.forEach( function(end)  {var start = end.start, end = end.end;return mod.body.remove( start, end )} );
 		annotateAst( mod.ast );
 	} catch ( err ) {
 		// If there's a parse error, attach file info
