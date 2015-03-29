@@ -1,15 +1,15 @@
 /*
-	esperanto.js v0.6.19 - 2015-03-30
+	esperanto.js v0.6.20 - 2015-03-30
 	http://esperantojs.org
 
 	Released under the MIT License.
 */
 
 (function (global, factory) {
-	typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory(require('acorn'), require('estraverse')) :
-	typeof define === 'function' && define.amd ? define(['acorn', 'estraverse'], factory) :
-	global.esperanto = factory(global.acorn, global.estraverse)
-}(this, function (acorn, estraverse) { 'use strict';
+	typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory(require('acorn')) :
+	typeof define === 'function' && define.amd ? define(['acorn'], factory) :
+	global.esperanto = factory(global.acorn)
+}(this, function (acorn) { 'use strict';
 
 	var hasOwnProp = Object.prototype.hasOwnProperty;
 
@@ -930,6 +930,57 @@
 		return result;
 	}
 
+	function walk ( ast, leave) {var enter = leave.enter, leave = leave.leave;
+		visit( ast, null, enter, leave );
+	}
+
+	var walk__context = {
+		skip: function()  {return walk__context.shouldSkip = true}
+	};
+
+	var walk__childKeys = {};
+
+	var walk__toString = Object.prototype.toString;
+
+	function isArray ( thing ) {
+		return walk__toString.call( thing ) === '[object Array]';
+	}
+
+	function visit ( node, parent, enter, leave ) {
+		if ( enter ) {
+			walk__context.shouldSkip = false;
+			enter.call( walk__context, node, parent );
+			if ( walk__context.shouldSkip ) return;
+		}
+
+		var keys = walk__childKeys[ node.type ] || (
+			walk__childKeys[ node.type ] = Object.keys( node ).filter( function(key ) {return typeof node[ key ] === 'object'} )
+		);
+
+		var key, value, i, j;
+
+		i = keys.length;
+		while ( i-- ) {
+			key = keys[i];
+			value = node[ key ];
+
+			if ( isArray( value ) ) {
+				j = value.length;
+				while ( j-- ) {
+					visit( value[j], node, enter, leave );
+				}
+			}
+
+			else if ( value && value.type ) {
+				visit( value, node, enter, leave );
+			}
+		}
+
+		if ( leave ) {
+			leave( node, parent );
+		}
+	}
+
 	/*
 		This module traverse a module's AST, attaching scope information
 		to nodes as it goes, which is later used to determine which
@@ -970,7 +1021,7 @@
 
 		var envDepth = 0;
 
-		estraverse.traverse( ast, {
+		walk( ast, {
 			enter: function ( node ) {
 				if ( node.type === 'ImportDeclaration' || node.type === 'ExportSpecifier' ) {
 					node._skip = true;
@@ -1324,7 +1375,7 @@
 			return hasOwnProp.call( importedNames, name );
 		}
 
-		estraverse.traverse( mod.ast, {
+		walk( mod.ast, {
 			enter: function ( node ) {
 				// we're only interested in references, not property names etc
 				if ( node._skip ) return this.skip();
@@ -1654,16 +1705,16 @@
 
 	function markBundleSourcemapLocations ( bundle ) {
 		bundle.modules.forEach( function(mod ) {
-			estraverse.traverse( mod.ast, {
+			walk( mod.ast, {
 				enter: function(node ) {
 					mod.body.addSourcemapLocation( node.start );
 				}
 			});
-		})
+		});
 	}
 
 	function markModuleSourcemapLocations ( mod ) {
-		estraverse.traverse( mod.ast, {
+		walk( mod.ast, {
 			enter: function(node ) {
 				mod.body.addSourcemapLocation( node.start );
 			}
@@ -2127,7 +2178,7 @@
 			capturedUpdates = null,
 			previousCapturedUpdates = null;
 
-		estraverse.traverse( ast, {
+		walk( ast, {
 			enter: function ( node, parent ) {
 				// we're only interested in references, not property names etc
 				if ( node._skip ) return this.skip();
