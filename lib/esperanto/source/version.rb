@@ -1,5 +1,5 @@
 module Esperanto
   module Source
-    VERSION = '0.6.17.3'
+    VERSION = '0.6.18'
   end
 end
