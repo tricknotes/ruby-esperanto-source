@@ -1,5 +1,5 @@
 /*
-	esperanto.js v0.6.22 - 2015-03-30
+	esperanto.js v0.6.23 - 2015-03-31
 	http://esperantojs.org
 
 	Released under the MIT License.
@@ -9,10 +9,11 @@
 
 var acorn = require('acorn');
 var MagicString = require('magic-string');
-var path = require('path');
+var _path = require('path');
 var sander = require('sander');
 
 var hasOwnProp = Object.prototype.hasOwnProperty;
+var utils_hasOwnProp = hasOwnProp;
 
 function hasNamedImports ( mod ) {
 	var i = mod.imports.length;
@@ -38,27 +39,27 @@ function walk ( ast, leave) {var enter = leave.enter, leave = leave.leave;
 	visit( ast, null, enter, leave );
 }
 
-var walk__context = {
-	skip: function()  {return walk__context.shouldSkip = true}
+var ast_walk__context = {
+	skip: function()  {return ast_walk__context.shouldSkip = true}
 };
 
-var walk__childKeys = {};
+var ast_walk__childKeys = {};
 
-var walk__toString = Object.prototype.toString;
+var ast_walk__toString = Object.prototype.toString;
 
 function isArray ( thing ) {
-	return walk__toString.call( thing ) === '[object Array]';
+	return ast_walk__toString.call( thing ) === '[object Array]';
 }
 
 function visit ( node, parent, enter, leave ) {
 	if ( enter ) {
-		walk__context.shouldSkip = false;
-		enter.call( walk__context, node, parent );
-		if ( walk__context.shouldSkip ) return;
+		ast_walk__context.shouldSkip = false;
+		enter.call( ast_walk__context, node, parent );
+		if ( ast_walk__context.shouldSkip ) return;
 	}
 
-	var keys = walk__childKeys[ node.type ] || (
-		walk__childKeys[ node.type ] = Object.keys( node ).filter( function(key ) {return typeof node[ key ] === 'object'} )
+	var keys = ast_walk__childKeys[ node.type ] || (
+		ast_walk__childKeys[ node.type ] = Object.keys( node ).filter( function(key ) {return typeof node[ key ] === 'object'} )
 	);
 
 	var key, value, i, j;
@@ -82,6 +83,30 @@ function visit ( node, parent, enter, leave ) {
 
 	if ( leave ) {
 		leave( node, parent );
+	}
+}
+
+function getId ( m ) {
+	return m.id;
+}
+
+function getName ( m ) {
+	return m.name;
+}
+
+function quote ( str ) {
+	return "'" + JSON.stringify(str).slice(1, -1).replace(/'/g, "\\'") + "'";
+}
+
+function req ( path ) {
+	return 'require(' + quote(path) + ')';
+}
+
+function globalify ( name ) {
+  	if ( /^__dep\d+__$/.test( name ) ) {
+		return 'undefined';
+	} else {
+		return 'global.' + name;
 	}
 }
 
@@ -154,9 +179,13 @@ function annotateAst ( ast ) {
 						}
 					}
 
+					var names = node.params.map( getName );
+
+					names.forEach( function(name ) {return declared[ name ] = true} );
+
 					scope = node._scope = new Scope({
 						parent: scope,
-						params: node.params.map( function(x ) {return x.name} ) // TODO rest params?
+						params: names // TODO rest params?
 					});
 
 					break;
@@ -476,7 +505,7 @@ function getUnscopedNames ( mod ) {
 				});
 			});
 		}
-		return hasOwnProp.call( importedNames, name );
+		return utils_hasOwnProp.call( importedNames, name );
 	}
 
 	walk( mod.ast, {
@@ -528,7 +557,7 @@ function disallowConflictingImports ( imports ) {
 	}
 
 	function checkName ( name ) {
-		if ( hasOwnProp.call( usedNames, name ) ) {
+		if ( utils_hasOwnProp.call( usedNames, name ) ) {
 			throw new SyntaxError( (("Duplicated import ('" + name) + "')") );
 		}
 
@@ -573,7 +602,7 @@ function getStandaloneModule ( options ) {
 			sourceType: 'module',
 			onComment: function ( block, text, start, end ) {
 				// sourceMappingURL comments should be removed
-				if ( !block && /^# sourceMappingURL=/.test( text ) ) {
+				if ( !block && SOURCEMAPPINGURL_REGEX.test( text ) ) {
 					toRemove.push({ start: start, end: end });
 				}
 			}
@@ -616,7 +645,7 @@ function determineImportNames ( imports, userFn, usedNames ) {
 		moduleId = x.path;
 
 		// use existing value
-		if ( hasOwnProp.call( nameById, moduleId ) ) {
+		if ( utils_hasOwnProp.call( nameById, moduleId ) ) {
 			x.name = nameById[ moduleId ];
 			return;
 		}
@@ -625,9 +654,9 @@ function determineImportNames ( imports, userFn, usedNames ) {
 		if ( userFn && ( name = userFn( moduleId ) ) ) {
 			name = sanitize( name );
 
-			if ( hasOwnProp.call( usedNames, name ) ) {
+			if ( utils_hasOwnProp.call( usedNames, name ) ) {
 				// TODO write a test for this
-				throw new Error( 'Naming collision: module ' + moduleId + ' cannot be called ' + name );
+				throw new Error( (("Naming collision: module " + moduleId) + (" cannot be called " + name) + "") );
 			}
 		}
 
@@ -639,7 +668,7 @@ function determineImportNames ( imports, userFn, usedNames ) {
 				while ( i-- > 0 ) {
 					candidate = prefix + sanitize( parts.slice( i ).join( '__' ) );
 
-					if ( !hasOwnProp.call( usedNames, candidate ) ) {
+					if ( !utils_hasOwnProp.call( usedNames, candidate ) ) {
 						name = candidate;
 						break;
 					}
@@ -658,13 +687,13 @@ function determineImportNames ( imports, userFn, usedNames ) {
 	// use inferred names for default imports, wherever they
 	// don't clash with path-based names
 	imports.forEach( function(x ) {
-		if ( x.as && !hasOwnProp.call( usedNames, x.as ) ) {
+		if ( x.as && !utils_hasOwnProp.call( usedNames, x.as ) ) {
 			inferredNames[ x.path ] = x.as;
 		}
 	});
 
 	imports.forEach( function(x ) {
-		if ( hasOwnProp.call( inferredNames, x.path ) ) {
+		if ( utils_hasOwnProp.call( inferredNames, x.path ) ) {
 			x.name = inferredNames[ x.path ];
 		}
 	});
@@ -712,7 +741,7 @@ function sortModules ( entry, moduleLookup ) {
 	function visit ( mod ) {
 		// ignore external modules, and modules we've
 		// already included
-		if ( !mod || hasOwnProp.call( seen, mod.id ) ) {
+		if ( !mod || utils_hasOwnProp.call( seen, mod.id ) ) {
 			return;
 		}
 
@@ -742,7 +771,7 @@ function resolveChains ( modules, moduleLookup ) {
 				if ( s.isBatch ) {
 					// if this is an internal module, we need to tell that module that
 					// it needs to export an object full of getters
-					if ( hasOwnProp.call( moduleLookup, x.id ) ) {
+					if ( utils_hasOwnProp.call( moduleLookup, x.id ) ) {
 						moduleLookup[ x.id ]._exportsNamespace = true;
 					}
 
@@ -757,7 +786,7 @@ function resolveChains ( modules, moduleLookup ) {
 			if ( !x.specifiers ) return;
 
 			x.specifiers.forEach( function(s ) {
-				if ( hasOwnProp.call( origin, s.name ) ) {
+				if ( utils_hasOwnProp.call( origin, s.name ) ) {
 					chains[ mod.id + '@' + s.name ] = origin[ s.name ];
 				}
 			});
@@ -771,28 +800,37 @@ function resolveChains ( modules, moduleLookup ) {
 // we add `exports` to this list, to avoid conflicst
 var builtins = 'Array ArrayBuffer DataView Date Error EvalError Float32Array Float64Array Function Generator GeneratorFunction Infinity Int16Array Int32Array Int8Array InternalError Intl Iterator JSON Map Math NaN Number Object ParallelArray Promise Proxy RangeError ReferenceError Reflect RegExp Set StopIteration String Symbol SyntaxError TypeError TypedArray URIError Uint16Array Uint32Array Uint8Array Uint8ClampedArray WeakMap WeakSet decodeURI decodeURIComponent encodeURI encodeURIComponent escape eval exports isFinite isNaN null parseFloat parseInt undefined unescape uneval'.split( ' ' );
 
-function getUniqueNames ( modules, externalModules, userNames ) {
-	var names = {}, used = {};
+function getUniqueNames ( bundle ) {
+	var modules = bundle.modules, externalModules = bundle.externalModules;
+	var userNames = bundle.names;
+	var names = {};
+
+	var used = modules.reduce( function( declared, mod )  {
+		Object.keys( mod.ast._declared ).forEach( function(x ) {return declared[x] = true} );
+		return declared;
+	}, {} );
 
 	// copy builtins
 	builtins.forEach( function(n ) {return used[n] = true} );
 
 	// copy user-specified names
 	if ( userNames ) {
-		Object.keys( userNames ).forEach( function(n ) {
-			names[n] = userNames[n];
-			used[ userNames[n] ] = true;
+		Object.keys( userNames ).forEach( function(id ) {
+			names[ id ] = userNames[ id ];
+			used[ userNames[ id ] ] = true;
 		});
 	}
 
-	// infer names from default imports
+	// infer names from default imports - e.g. with `import _ from './utils'`,
+	// use '_' instead of generating a name from 'utils'
+	function inferName ( x ) {
+		if ( x.isDefault && !utils_hasOwnProp.call( names, x.id ) && !utils_hasOwnProp.call( used, x.as ) ) {
+			names[ x.id ] = x.as;
+			used[ x.as ] = true;
+		}
+	}
 	modules.forEach( function(mod ) {
-		mod.imports.forEach( function(x ) {
-			if ( x.isDefault && !hasOwnProp.call( names, x.id ) && !hasOwnProp.call( used, x.as ) ) {
-				names[ x.id ] = x.as;
-				used[ x.as ] = true;
-			}
-		});
+		mod.imports.forEach( inferName );
 	});
 
 	// for the rest, make names as compact as possible without
@@ -801,7 +839,8 @@ function getUniqueNames ( modules, externalModules, userNames ) {
 		var parts, i, name;
 
 		// is this already named?
-		if ( hasOwnProp.call( names, mod.id ) ) {
+		if ( utils_hasOwnProp.call( names, mod.id ) ) {
+			mod.name = names[ mod.id ];
 			return;
 		}
 
@@ -811,17 +850,17 @@ function getUniqueNames ( modules, externalModules, userNames ) {
 		while ( i-- ) {
 			name = sanitize( parts.slice( i ).join( '_' ) );
 
-			if ( !hasOwnProp.call( used, name ) ) {
+			if ( !utils_hasOwnProp.call( used, name ) ) {
 				break;
 			}
 		}
 
-		while ( hasOwnProp.call( used, name ) ) {
+		while ( utils_hasOwnProp.call( used, name ) ) {
 			name = '_' + name;
 		}
 
 		used[ name ] = true;
-		names[ mod.id ] = name;
+		mod.name = name;
 	});
 
 	return names;
@@ -845,30 +884,6 @@ function populateExternalModuleImports ( bundle ) {
 			});
 		});
 	});
-}
-
-function getId ( m ) {
-	return m.id;
-}
-
-function getName ( m ) {
-	return m.name;
-}
-
-function quote ( str ) {
-	return "'" + JSON.stringify(str).slice(1, -1).replace(/'/g, "\\'") + "'";
-}
-
-function req ( path ) {
-	return 'require(' + quote(path) + ')';
-}
-
-function globalify ( name ) {
-  	if ( /^__dep\d+__$/.test( name ) ) {
-		return 'undefined';
-	} else {
-		return 'global.' + name;
-	}
 }
 
 function getRenamedImports ( mod ) {
@@ -910,7 +925,7 @@ function topLevelScopeConflicts ( bundle ) {
 
 		// merge this module's top scope with bundle top scope
 		names.forEach( function(name ) {
-			if ( hasOwnProp.call( inBundle, name ) ) {
+			if ( utils_hasOwnProp.call( inBundle, name ) ) {
 				conflicts[ name ] = true;
 			} else {
 				inBundle[ name ] = true;
@@ -934,11 +949,11 @@ function populateIdentifierReplacements ( bundle ) {
 			var result;
 
 			if ( x.hasDeclaration && x.name ) {
-				result = hasOwnProp.call( conflicts, x.name ) || otherModulesDeclare( mod, x.name ) ?
+				result = utils_hasOwnProp.call( conflicts, x.name ) || otherModulesDeclare( mod, x.name ) ?
 					(("" + (mod.name)) + ("__" + (x.name)) + "") :
 					x.name;
 			} else {
-				result = hasOwnProp.call( conflicts, mod.name ) || ( x.value !== mod.name && ~mod.ast._topLevelNames.indexOf( mod.name )) || otherModulesDeclare( mod, mod.name ) ?
+				result = utils_hasOwnProp.call( conflicts, mod.name ) || ( x.value !== mod.name && ~mod.ast._topLevelNames.indexOf( mod.name )) || otherModulesDeclare( mod, mod.name ) ?
 					(("" + (mod.name)) + "__default") :
 					mod.name;
 			}
@@ -955,7 +970,7 @@ function populateIdentifierReplacements ( bundle ) {
 		moduleIdentifiers = mod.identifierReplacements;
 
 		mod.ast._topLevelNames.forEach( function(n ) {
-			moduleIdentifiers[n] = hasOwnProp.call( conflicts, n ) ?
+			moduleIdentifiers[n] = utils_hasOwnProp.call( conflicts, n ) ?
 				mod.name + '__' + n :
 				n;
 		});
@@ -967,7 +982,7 @@ function populateIdentifierReplacements ( bundle ) {
 				return;
 			}
 
-			externalModule = hasOwnProp.call( bundle.externalModuleLookup, x.id ) && bundle.externalModuleLookup[ x.id ];
+			externalModule = utils_hasOwnProp.call( bundle.externalModuleLookup, x.id ) && bundle.externalModuleLookup[ x.id ];
 
 			x.specifiers.forEach( function(s ) {
 				var moduleId, mod, moduleName, specifierName, replacement, hash, isChained, separatorIndex;
@@ -983,7 +998,7 @@ function populateIdentifierReplacements ( bundle ) {
 
 					// If this is a chained import, get the origin
 					hash = moduleId + '@' + specifierName;
-					while ( hasOwnProp.call( bundle.chains, hash ) ) {
+					while ( utils_hasOwnProp.call( bundle.chains, hash ) ) {
 						hash = bundle.chains[ hash ];
 						isChained = true;
 					}
@@ -1011,7 +1026,7 @@ function populateIdentifierReplacements ( bundle ) {
 							replacement = mod.identifierReplacements.default;
 						}
 					} else if ( !externalModule ) {
-						replacement = hasOwnProp.call( conflicts, specifierName ) ?
+						replacement = utils_hasOwnProp.call( conflicts, specifierName ) ?
 							moduleName + '__' + specifierName :
 							specifierName;
 					} else {
@@ -1037,7 +1052,7 @@ function populateIdentifierReplacements ( bundle ) {
 				continue;
 			}
 
-			if ( hasOwnProp.call( otherMod.ast._declared, replacement ) ) {
+			if ( utils_hasOwnProp.call( otherMod.ast._declared, replacement ) ) {
 				return true;
 			}
 		}
@@ -1066,12 +1081,6 @@ function resolveExports ( bundle ) {
 				name = split[1];
 
 				addExport( moduleId, name, s.name );
-
-				// if ( !bundleExports[ moduleId ] ) {
-				// 	bundleExports[ moduleId ] = {};
-				// }
-
-				// bundleExports[ moduleId ][ name ] = s.name;
 			});
 		}
 
@@ -1142,14 +1151,14 @@ function disallowIllegalReassignment ( node, importedBindings, importedNamespace
 
 	name = assignee.name;
 
-	if ( hasOwnProp.call( isNamespaceAssignment ? importedNamespaces : importedBindings, name ) && !scope.contains( name ) ) {
+	if ( utils_hasOwnProp.call( isNamespaceAssignment ? importedNamespaces : importedBindings, name ) && !scope.contains( name ) ) {
 		throw new Error( ( isNamespaceAssignment ? namespaceMessage : bindingMessage ) + '`' + name + '`' );
 	}
 }
 
 function replaceIdentifiers ( body, node, identifierReplacements, scope ) {
 	var name = node.name;
-	var replacement = hasOwnProp.call( identifierReplacements, name ) && identifierReplacements[ name ];
+	var replacement = utils_hasOwnProp.call( identifierReplacements, name ) && identifierReplacements[ name ];
 
 	// TODO unchanged identifiers shouldn't have got this far -
 	// remove the `replacement !== name` safeguard once that's the case
@@ -1159,7 +1168,7 @@ function replaceIdentifiers ( body, node, identifierReplacements, scope ) {
 	}
 }
 
-function rewriteExportAssignments ( body, node, exports, scope, alreadyExported, isTopLevelNode, capturedUpdates ) {
+function rewriteExportAssignments ( body, node, exports, scope, capturedUpdates ) {
 	var assignee, name, exportAs;
 
 	if ( node.type === 'AssignmentExpression' ) {
@@ -1180,7 +1189,7 @@ function rewriteExportAssignments ( body, node, exports, scope, alreadyExported,
 		return; // shadows an export
 	}
 
-	if ( exports && hasOwnProp.call( exports, name ) && ( exportAs = exports[ name ] ) ) {
+	if ( exports && utils_hasOwnProp.call( exports, name ) && ( exportAs = exports[ name ] ) ) {
 		if ( !!capturedUpdates ) {
 			capturedUpdates.push({
 				name: name,
@@ -1195,16 +1204,10 @@ function rewriteExportAssignments ( body, node, exports, scope, alreadyExported,
 		} else {
 			body.replace( node.start, node.start, (("exports." + exportAs) + " = ") );
 		}
-
-		// keep track of what we've already exported - we don't need to
-		// export it again later
-		if ( isTopLevelNode ) {
-			alreadyExported[ name ] = true;
-		}
 	}
 }
 
-function traverseAst ( ast, body, identifierReplacements, importedBindings, importedNamespaces, exportNames, alreadyExported ) {
+function traverseAst ( ast, body, identifierReplacements, importedBindings, importedNamespaces, exportNames ) {
 	var scope = ast._scope,
 		blockScope = ast._blockScope,
 		capturedUpdates = null,
@@ -1236,9 +1239,11 @@ function traverseAst ( ast, body, identifierReplacements, importedBindings, impo
 			// Catch illegal reassignments
 			disallowIllegalReassignment( node, importedBindings, importedNamespaces, scope );
 
-			// Rewrite assignments to exports. This call may mutate `alreadyExported`
-			// and `capturedUpdates`, which are used elsewhere
-			rewriteExportAssignments( body, node, exportNames, scope, alreadyExported, scope === ast._scope, capturedUpdates );
+			// Rewrite assignments to exports inside functions, to keep bindings live.
+			// This call may mutate `capturedUpdates`, which is used elsewhere
+			if ( scope !== ast._scope ) {
+				rewriteExportAssignments( body, node, exportNames, scope, capturedUpdates );
+			}
 
 			if ( node.type === 'Identifier' && parent.type !== 'FunctionExpression' ) {
 				replaceIdentifiers( body, node, identifierReplacements, scope );
@@ -1273,21 +1278,20 @@ function exportCapturedUpdate ( c ) {
 	return ((" exports." + (c.name)) + (" = " + (c.exportAs)) + ";");
 }
 
-function transformBody__transformBody ( bundle, mod, body ) {var $D$0;
+function combine_transformBody__transformBody ( bundle, mod, body ) {var $D$0;
 	var identifierReplacements,
 		importedBindings,
 		importedNamespaces,
 		exportNames,
-		alreadyExported = {},
 		shouldExportEarly = {},
 		exportBlock;
 
 	identifierReplacements = mod.identifierReplacements;
 	importedBindings = ($D$0 = getReadOnlyIdentifiers( mod.imports ))[0], importedNamespaces = $D$0[1], $D$0;
 
-	exportNames = hasOwnProp.call( bundle.exports, mod.id ) && bundle.exports[ mod.id ];
+	exportNames = utils_hasOwnProp.call( bundle.exports, mod.id ) && bundle.exports[ mod.id ];
 
-	traverseAst( mod.ast, body, identifierReplacements, importedBindings, importedNamespaces, exportNames, alreadyExported );
+	traverseAst( mod.ast, body, identifierReplacements, importedBindings, importedNamespaces, exportNames );
 
 	// Remove import statements
 	mod.imports.forEach( function(x ) {
@@ -1321,7 +1325,7 @@ function transformBody__transformBody ( bundle, mod, body ) {var $D$0;
 				if ( name === identifierReplacements.default ) {
 					body.remove( x.start, x.end );
 				} else {
-					var original = hasOwnProp.call( identifierReplacements, name ) ? identifierReplacements[ name ] : name;
+					var original = utils_hasOwnProp.call( identifierReplacements, name ) ? identifierReplacements[ name ] : name;
 					body.replace( x.start, x.end, (("var " + (identifierReplacements.default)) + (" = " + original) + ";") );
 				}
 			}
@@ -1380,12 +1384,8 @@ function transformBody__transformBody ( bundle, mod, body ) {var $D$0;
 		exportBlock = [];
 
 		Object.keys( exportNames ).forEach( function(name ) {
-			var exportAs;
-
-			if ( !alreadyExported[ name ] ) {
-				exportAs = exportNames[ name ];
-				exportBlock.push( (("exports." + exportAs) + (" = " + (identifierReplacements[name])) + ";") );
-			}
+			var exportAs = exportNames[ name ];
+			exportBlock.push( (("exports." + exportAs) + (" = " + (identifierReplacements[name])) + ";") );
 		});
 
 		if ( exportBlock.length ) {
@@ -1397,17 +1397,12 @@ function transformBody__transformBody ( bundle, mod, body ) {var $D$0;
 ;$D$0 = void 0}
 
 function combine ( bundle ) {
-	var body;
-
-	body = new MagicString.Bundle({
+	bundle.body = new MagicString.Bundle({
 		separator: '\n\n'
 	});
 
-	// populate names
-	var uniqueNames = getUniqueNames( bundle.modules, bundle.externalModules, bundle.names );
-	var setName = function(mod ) {return mod.name = uniqueNames[ mod.id ]};
-	bundle.modules.forEach( setName );
-	bundle.externalModules.forEach( setName );
+	// give each module in the bundle a unique name
+	getUniqueNames( bundle );
 
 	// determine which specifiers are imported from
 	// external modules
@@ -1430,19 +1425,17 @@ function combine ( bundle ) {
 
 			x.specifiers.forEach( function(s ) {
 				if ( !importedModule.doesExport[ s.name ] ) {
-					throw new Error( 'Module ' + importedModule.id + ' does not export ' + s.name + ' (imported by ' + mod.id + ')' );
+					throw new Error( (("Module '" + (importedModule.id)) + ("' does not export '" + (s.name)) + ("' (imported by '" + (mod.id)) + "')") );
 				}
 			});
 		});
 
-		body.addSource({
-			filename: path.resolve( bundle.base, mod.relativePath ),
-			content: transformBody__transformBody( bundle, mod, mod.body ),
+		bundle.body.addSource({
+			filename: _path.resolve( bundle.base, mod.relativePath ),
+			content: combine_transformBody__transformBody( bundle, mod, mod.body ),
 			indentExclusionRanges: mod.ast._templateLiteralRanges
 		});
 	});
-
-	bundle.body = body;
 }
 
 function getModule ( mod ) {var $D$1;
@@ -1514,7 +1507,7 @@ function getModule ( mod ) {var $D$1;
 	return mod;
 ;$D$1 = void 0}
 
-var getBundle__Promise = sander.Promise;
+var bundler_getBundle__Promise = sander.Promise;
 
 function getBundle ( options ) {
 	var entry = options.entry.replace( /\.js$/, '' ),
@@ -1523,7 +1516,7 @@ function getBundle ( options ) {
 		promiseByPath = {},
 		skip = options.skip,
 		names = options.names,
-		base = ( options.base ? path.resolve( options.base ) : process.cwd() ) + '/',
+		base = ( options.base ? _path.resolve( options.base ) : process.cwd() ) + '/',
 		externalModules = [],
 		externalModuleLookup = {};
 
@@ -1564,7 +1557,7 @@ function getBundle ( options ) {
 	});
 
 	function fetchModule ( moduleId, modulePath ) {
-		if ( !hasOwnProp.call( promiseByPath, modulePath ) ) {
+		if ( !utils_hasOwnProp.call( promiseByPath, modulePath ) ) {
 			promiseByPath[ modulePath ] = sander.readFile( modulePath ).then( String ).then( function ( source ) {
 				var module, promises;
 
@@ -1579,7 +1572,7 @@ function getBundle ( options ) {
 				module = getModule({
 					source: source,
 					id: moduleId,
-					relativePath: path.relative( base, modulePath ),
+					relativePath: _path.relative( base, modulePath ),
 					path: modulePath
 				});
 
@@ -1600,7 +1593,7 @@ function getBundle ( options ) {
 
 					return resolvePath( base, x.id, modulePath, options.resolvePath ).then( function(modulePath ) {
 						// short-circuit cycles
-						if ( hasOwnProp.call( promiseByPath, modulePath ) ) {
+						if ( utils_hasOwnProp.call( promiseByPath, modulePath ) ) {
 							return;
 						}
 
@@ -1608,7 +1601,7 @@ function getBundle ( options ) {
 					}, function handleError ( err ) {
 						if ( err.code === 'ENOENT' ) {
 							// Most likely an external module
-							if ( !hasOwnProp.call( externalModuleLookup, x.id ) ) {
+							if ( !utils_hasOwnProp.call( externalModuleLookup, x.id ) ) {
 								var externalModule = {
 									id: x.id
 								};
@@ -1622,7 +1615,7 @@ function getBundle ( options ) {
 					} );
 				});
 
-				return getBundle__Promise.all( promises );
+				return bundler_getBundle__Promise.all( promises );
 			});
 		}
 
@@ -1631,9 +1624,9 @@ function getBundle ( options ) {
 }
 
 function resolvePath ( base, moduleId, importerPath, resolver ) {
-	return tryPath( path.resolve( base, moduleId + '.js' ) )
+	return tryPath( _path.resolve( base, moduleId + '.js' ) )
 		.catch( function () {
-			return tryPath( path.resolve( base, moduleId, 'index.js' ) );
+			return tryPath( _path.resolve( base, moduleId, 'index.js' ) );
 		})
 		.catch( function ( err ) {
 			if ( resolver ) {
@@ -1824,9 +1817,9 @@ function template ( str ) {
 	};
 }
 
-var amd__introTemplate = template( 'define(<%= amdName %><%= paths %>function (<%= names %>) {\n\n' );
+var defaultsMode_amd__introTemplate = template( 'define(<%= amdName %><%= paths %>function (<%= names %>) {\n\n' );
 
-function amd__amd ( mod, options ) {
+function defaultsMode_amd__amd ( mod, options ) {
 	var seen = {},
 		importNames = [],
 		importPaths = [],
@@ -1837,7 +1830,7 @@ function amd__amd ( mod, options ) {
 	mod.imports.forEach( function(x ) {
 		var path = options.absolutePaths ? resolveId( x.path, options.amdName ) : x.path;
 
-		if ( !hasOwnProp.call( seen, path ) ) {
+		if ( !utils_hasOwnProp.call( seen, path ) ) {
 			importPaths.push( path );
 
 			if ( x.as ) {
@@ -1858,7 +1851,7 @@ function amd__amd ( mod, options ) {
 
 	transformExportDeclaration( mod.exports[0], mod.body );
 
-	intro = amd__introTemplate({
+	intro = defaultsMode_amd__introTemplate({
 		amdName: options.amdName ? (("'" + (options.amdName)) + "', ") : '',
 		paths: importPaths.length ? '[' + importPaths.map( quote ).join( ', ' ) + '], ' : '',
 		names: importNames.join( ', ' )
@@ -1874,11 +1867,11 @@ function amd__amd ( mod, options ) {
 	return packageResult( mod, mod.body, options, 'toAmd' );
 }
 
-function cjs__cjs ( mod, options ) {
+function defaultsMode_cjs__cjs ( mod, options ) {
 	var seen = {}, exportDeclaration;
 
 	mod.imports.forEach( function(x ) {
-		if ( !hasOwnProp.call( seen, x.path ) ) {
+		if ( !utils_hasOwnProp.call( seen, x.path ) ) {
 			var replacement = x.isEmpty ? (("" + (req(x.path))) + ";") : (("var " + (x.as)) + (" = " + (req(x.path))) + ";");
 			mod.body.replace( x.start, x.end, replacement );
 
@@ -1975,15 +1968,17 @@ EsperantoError.prototype = new Error();
 EsperantoError.prototype.constructor = EsperantoError;
 EsperantoError.prototype.name = 'EsperantoError';
 
+var utils_EsperantoError = EsperantoError;
+
 function requireName ( options ) {
 	if ( !options.name ) {
-		throw new EsperantoError( 'You must supply a `name` option for UMD modules', {
+		throw new utils_EsperantoError( 'You must supply a `name` option for UMD modules', {
 			code: 'MISSING_NAME'
 		});
 	}
 }
 
-function umd__umd ( mod, options ) {
+function defaultsMode_umd__umd ( mod, options ) {
 	var importNames = [];
 	var importPaths = [];
 	var seen = {};
@@ -2002,7 +1997,7 @@ function umd__umd ( mod, options ) {
 	} else {
 		// gather imports, and remove import declarations
 		mod.imports.forEach( function(x ) {
-			if ( !hasOwnProp.call( seen, x.path ) ) {
+			if ( !utils_hasOwnProp.call( seen, x.path ) ) {
 				importPaths.push( x.path );
 
 				if ( x.as ) {
@@ -2039,9 +2034,9 @@ function umd__umd ( mod, options ) {
 }
 
 var defaultsMode = {
-	amd: amd__amd,
-	cjs: cjs__cjs,
-	umd: umd__umd
+	amd: defaultsMode_amd__amd,
+	cjs: defaultsMode_cjs__cjs,
+	umd: defaultsMode_umd__umd
 };
 
 function gatherImports ( imports ) {
@@ -2094,7 +2089,6 @@ function utils_transformBody__transformBody ( mod, body, options ) {var $D$2;
 		importedBindings = {},
 		importedNamespaces = {},
 		exportNames,
-		alreadyExported = {},
 		earlyExports,
 		lateExports;
 
@@ -2106,7 +2100,7 @@ function utils_transformBody__transformBody ( mod, body, options ) {var $D$2;
 	// ensure no conflict with `exports`
 	identifierReplacements.exports = deconflict( 'exports', mod.ast._declared );
 
-	traverseAst( mod.ast, body, identifierReplacements, importedBindings, importedNamespaces, exportNames, alreadyExported );
+	traverseAst( mod.ast, body, identifierReplacements, importedBindings, importedNamespaces, exportNames );
 
 	// Remove import statements from the body of the module
 	mod.imports.forEach( function(x ) {
@@ -2173,7 +2167,7 @@ function utils_transformBody__transformBody ( mod, body, options ) {var $D$2;
 			// functions should be exported early, in
 			// case of cyclic dependencies
 			earlyExports.push( (("exports." + exportAs) + (" = " + name) + ";") );
-		} else if ( !alreadyExported.hasOwnProperty( name ) ) {
+		} else {
 			lateExports.push( (("exports." + exportAs) + (" = " + name) + ";") );
 		}
 	});
@@ -2194,7 +2188,7 @@ function utils_transformBody__transformBody ( mod, body, options ) {var $D$2;
 ;$D$2 = void 0}
 
 function deconflict ( name, declared ) {
-	while ( hasOwnProp.call( declared, name ) ) {
+	while ( utils_hasOwnProp.call( declared, name ) ) {
 		name = '_' + name;
 	}
 
@@ -2205,7 +2199,7 @@ function getImportSummary ( mod ) {
 	var importPaths = [], importNames = [], seen = {}, placeholders = 0;
 
 	mod.imports.forEach( function(x ) {
-		if ( !hasOwnProp.call( seen, x.path ) ) {
+		if ( !utils_hasOwnProp.call( seen, x.path ) ) {
 			importPaths.push( x.path );
 
 			if ( x.specifiers.length ) {
@@ -2263,7 +2257,7 @@ function strictMode_cjs__cjs ( mod, options ) {
 	importBlock = mod.imports.map( function(x ) {
 		var name, replacement;
 
-		if ( !hasOwnProp.call( seen, x.path ) ) {
+		if ( !utils_hasOwnProp.call( seen, x.path ) ) {
 			if ( x.isEmpty ) {
 				replacement = (("" + (req(x.path))) + ";");
 			} else {
@@ -2367,15 +2361,15 @@ var moduleBuilders = {
 	strictMode: strictMode
 };
 
-var defaultsMode_amd__introTemplate = template( 'define(<%= amdName %><%= amdDeps %>function (<%= names %>) {\n\n\t\'use strict\';\n\n' );
+var builders_defaultsMode_amd__introTemplate = template( 'define(<%= amdName %><%= amdDeps %>function (<%= names %>) {\n\n\t\'use strict\';\n\n' );
 
-function defaultsMode_amd__amd ( bundle, options ) {
+function builders_defaultsMode_amd__amd ( bundle, options ) {
 	var defaultName = bundle.entryModule.identifierReplacements.default;
 	if ( defaultName ) {
 		bundle.body.append( (("\n\nreturn " + defaultName) + ";") );
 	}
 
-	var intro = defaultsMode_amd__introTemplate({
+	var intro = builders_defaultsMode_amd__introTemplate({
 		amdName: options.amdName ? (("" + (quote(options.amdName))) + ", ") : '',
 		amdDeps: bundle.externalModules.length ? '[' + bundle.externalModules.map( quoteId ).join( ', ' ) + '], ' : '',
 		names: bundle.externalModules.map( getName ).join( ', ' )
@@ -2389,7 +2383,7 @@ function quoteId ( m ) {
 	return "'" + m.id + "'";
 }
 
-function defaultsMode_cjs__cjs ( bundle, options ) {
+function builders_defaultsMode_cjs__cjs ( bundle, options ) {
 	var importBlock = bundle.externalModules.map( function(x ) {
 		return (("var " + (x.name)) + (" = " + (req(x.id))) + ";");
 	}).join( '\n' );
@@ -2408,7 +2402,7 @@ function defaultsMode_cjs__cjs ( bundle, options ) {
 	return packageResult( bundle, bundle.body, options, 'toCjs', true );
 }
 
-function defaultsMode_umd__umd ( bundle, options ) {
+function builders_defaultsMode_umd__umd ( bundle, options ) {
 	requireName( options );
 
 	var entry = bundle.entryModule;
@@ -2446,9 +2440,9 @@ function defaultsMode_umd__umd ( bundle, options ) {
 }
 
 var builders_defaultsMode = {
-	amd: defaultsMode_amd__amd,
-	cjs: defaultsMode_cjs__cjs,
-	umd: defaultsMode_umd__umd
+	amd: builders_defaultsMode_amd__amd,
+	cjs: builders_defaultsMode_cjs__cjs,
+	umd: builders_defaultsMode_umd__umd
 };
 
 function getExportBlock ( entry ) {
@@ -2679,7 +2673,7 @@ var esperanto = {
 
 					bundle.modules.forEach( function(mod ) {
 						mod.imports.forEach( function(x ) {
-							if ( hasOwnProp.call( bundle.externalModuleLookup, x.id ) && ( !x.isDefault && !x.isBatch ) ) {
+							if ( utils_hasOwnProp.call( bundle.externalModuleLookup, x.id ) && ( !x.isDefault && !x.isBatch ) ) {
 								throw new Error( 'You can only have named external imports in strict mode (pass `strict: true`)' );
 							}
 						});
