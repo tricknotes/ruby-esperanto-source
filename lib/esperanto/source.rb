@@ -10,7 +10,6 @@ module Esperanto
       def bundled_paths
         %w(
           acorn.js
-          estraverse.js
           base64.js
           esperanto.browser.js
         ).map {|js| bundled_path_for(js) }
