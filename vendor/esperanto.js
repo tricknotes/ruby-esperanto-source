@@ -1,5 +1,5 @@
 /*
-	esperanto.js v0.6.27 - 2015-04-16
+	esperanto.js v0.6.28 - 2015-04-15
 	http://esperantojs.org
 
 	Released under the MIT License.
@@ -1654,8 +1654,19 @@ function resolvePath ( base, userModules, moduleId, importerPath, resolver ) {
 	return tryPath( base, moduleId + '.js', userModules )
 		.catch( function()  {return tryPath( base, moduleId + _path.sep + 'index.js', userModules )} )
 		.catch( function ( err ) {
-			if ( resolver ) {
-				return resolver( moduleId, importerPath );
+			var resolvedPromise = resolver && bundler_getBundle__Promise.resolve( resolver( moduleId, importerPath ) );
+
+			if ( resolvedPromise ) {
+				return resolvedPromise.then( function(resolvedPath ) {
+					if ( !resolvedPath ) {
+						// hack but whatevs, it saves handling real ENOENTs differently
+						var err = new Error();
+						err.code = 'ENOENT';
+						throw err;
+					}
+
+					return sander.stat( resolvedPath ).then( function()  {return resolvedPath} );
+				});
 			} else {
 				throw err;
 			}
