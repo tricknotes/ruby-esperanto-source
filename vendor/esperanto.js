@@ -1,5 +1,5 @@
 /*
-	esperanto.js v0.6.33 - 2015-05-07
+	esperanto.js v0.6.34 - 2015-05-12
 	http://esperantojs.org
 
 	Released under the MIT License.
@@ -32,12 +32,17 @@ function hasNamedExports ( mod ) {
 	}
 }
 
+var ast_walk__shouldSkip = void 0;
+var ast_walk__shouldAbort = void 0;
+
 function walk ( ast, leave) {var enter = leave.enter, leave = leave.leave;
+	ast_walk__shouldAbort = false;
 	visit( ast, null, enter, leave );
 }
 
 var ast_walk__context = {
-	skip: function()  {return ast_walk__context.shouldSkip = true}
+	skip: function()  {return ast_walk__shouldSkip = true},
+	abort: function()  {return ast_walk__shouldAbort = true}
 };
 
 var ast_walk__childKeys = {};
@@ -49,12 +54,12 @@ function isArray ( thing ) {
 }
 
 function visit ( node, parent, enter, leave ) {
-	if ( !node ) return;
+	if ( !node || ast_walk__shouldAbort ) return;
 
 	if ( enter ) {
-		ast_walk__context.shouldSkip = false;
+		ast_walk__shouldSkip = false;
 		enter.call( ast_walk__context, node, parent );
-		if ( ast_walk__context.shouldSkip ) return;
+		if ( ast_walk__shouldSkip || ast_walk__shouldAbort ) return;
 	}
 
 	var keys = ast_walk__childKeys[ node.type ] || (
@@ -80,7 +85,7 @@ function visit ( node, parent, enter, leave ) {
 		}
 	}
 
-	if ( leave ) {
+	if ( leave && !ast_walk__shouldAbort ) {
 		leave( node, parent );
 	}
 }
@@ -755,61 +760,87 @@ function resolveAgainst ( importerPath ) {
 function sortModules ( entry ) {
 	var seen = {};
 	var ordered = [];
-	var swapPairs = [];
+	var hasCycles;
+
+	var strongDeps = {};
+	var stronglyDependsOn = {};
 
 	function visit ( mod ) {
-		seen[ mod.id ] = true;
+		var id = mod.id;
+
+		seen[ id ] = true;
+
+		strongDeps[ id ] = [];
+		stronglyDependsOn[ id ] = {};
 
 		mod.imports.forEach( function(x ) {
 			var imported = x.module;
 
 			if ( imported.isExternal || imported.isSkipped ) return;
 
-			// ignore modules we've already included
-			if ( utils_hasOwnProp.call( seen, imported.id ) ) {
-				if ( shouldSwap( imported, mod ) ) {
-					swapPairs.push([ imported, mod ]);
-				}
+			// if `mod` references a binding from `imported` at the top
+			// level (i.e. outside function bodies), we say that `mod`
+			// strongly depends on `imported. If two modules depend on
+			// each other, this helps us order them such that if a
+			// strongly depends on b, and b weakly depends on a, b
+			// goes first
+			if ( referencesAtTopLevel( mod, imported ) ) {
+				strongDeps[ id ].push( imported );
+			}
 
+			if ( utils_hasOwnProp.call( seen, imported.id ) ) {
+				// we need to prevent an infinite loop, and note that
+				// we need to check for strong/weak dependency relationships
+				hasCycles = true;
 				return;
 			}
 
 			visit( imported );
 		});
 
+		// add second (and third...) order dependencies
+		function addStrongDependencies ( dependency ) {
+			if ( utils_hasOwnProp.call( stronglyDependsOn[ id ], dependency.id ) ) return;
+
+			stronglyDependsOn[ id ][ dependency.id ] = true;
+			strongDeps[ dependency.id ].forEach( addStrongDependencies );
+		}
+
+		strongDeps[ id ].forEach( addStrongDependencies );
+
 		ordered.push( mod );
 	}
 
 	visit( entry );
 
-	swapPairs.forEach( function(b)  {var a = b[0], b = b[1];
-		var aIndex = ordered.indexOf( a );
-		var bIndex = ordered.indexOf( b );
+	var unordered;
 
-		ordered[ aIndex ] = b;
-		ordered[ bIndex ] = a;
-	});
+	if ( hasCycles ) {
+		unordered = ordered;
+		ordered = [];
+
+		// unordered is actually semi-ordered, as [ fewer dependencies ... more dependencies ]
+		unordered.forEach( function(x ) {
+			// ensure strong dependencies of x that don't strongly depend on x go first
+			strongDeps[ x.id ].forEach( place );
+
+			function place ( dep ) {
+				if ( !stronglyDependsOn[ dep.id ][ x.id ] && !~ordered.indexOf( dep ) ) {
+					strongDeps[ dep.id ].forEach( place );
+					ordered.push( dep );
+				}
+			}
+
+			if ( !~ordered.indexOf( x ) ) {
+				ordered.push( x );
+			}
+		});
+	}
 
 	return ordered;
 }
 
-function shouldSwap ( a, b ) {
-	// if these modules don't import each other, abort
-	if ( !( utils_sortModules__imports( a, b ) && utils_sortModules__imports( b, a ) ) ) return;
-
-	return usesAtTopLevel( b, a ) && !usesAtTopLevel( a, b );
-}
-
-function utils_sortModules__imports ( a, b ) {
-	var i = a.imports.length;
-	while ( i-- ) {
-		if ( a.imports[i].module === b ) {
-			return true;
-		}
-	}
-}
-
-function usesAtTopLevel ( a, b ) {
+function referencesAtTopLevel ( a, b ) {
 	var bindings = [];
 
 	// find out which bindings a imports from b
@@ -825,16 +856,13 @@ function usesAtTopLevel ( a, b ) {
 
 	walk( a.ast, {
 		enter: function ( node ) {
-			if ( referencedAtTopLevel ) {
-				return this.skip();
-			}
-
 			if ( /^Import/.test( node.type ) || ( node._scope && node._scope.parent ) ) {
 				return this.skip();
 			}
 
 			if ( node.type === 'Identifier' && ~bindings.indexOf( node.name ) ) {
 				referencedAtTopLevel = true;
+				this.abort();
 			}
 		}
 	});

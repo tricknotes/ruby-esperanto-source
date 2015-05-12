@@ -1,5 +1,5 @@
 /*
-	esperanto.js v0.6.33 - 2015-05-07
+	esperanto.js v0.6.34 - 2015-05-12
 	http://esperantojs.org
 
 	Released under the MIT License.
@@ -930,12 +930,17 @@
 
 	var magic_string = MagicString;
 
+	var ast_walk__shouldSkip;
+	var ast_walk__shouldAbort;
+
 	function walk ( ast, leave) {var enter = leave.enter, leave = leave.leave;
+		ast_walk__shouldAbort = false;
 		visit( ast, null, enter, leave );
 	}
 
 	var ast_walk__context = {
-		skip: function()  {return ast_walk__context.shouldSkip = true}
+		skip: function()  {return ast_walk__shouldSkip = true},
+		abort: function()  {return ast_walk__shouldAbort = true}
 	};
 
 	var ast_walk__childKeys = {};
@@ -947,12 +952,12 @@
 	}
 
 	function visit ( node, parent, enter, leave ) {
-		if ( !node ) return;
+		if ( !node || ast_walk__shouldAbort ) return;
 
 		if ( enter ) {
-			ast_walk__context.shouldSkip = false;
+			ast_walk__shouldSkip = false;
 			enter.call( ast_walk__context, node, parent );
-			if ( ast_walk__context.shouldSkip ) return;
+			if ( ast_walk__shouldSkip || ast_walk__shouldAbort ) return;
 		}
 
 		var keys = ast_walk__childKeys[ node.type ] || (
@@ -978,7 +983,7 @@
 			}
 		}
 
-		if ( leave ) {
+		if ( leave && !ast_walk__shouldAbort ) {
 			leave( node, parent );
 		}
 	}
