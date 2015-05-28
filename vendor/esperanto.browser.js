@@ -1,5 +1,5 @@
 /*
-	esperanto.js v0.7.0 - 2015-05-12
+	esperanto.js v0.7.1 - 2015-05-27
 	http://esperantojs.org
 
 	Released under the MIT License.
@@ -11,8 +11,6 @@
 	factory((global.esperanto = {}), global.acorn)
 }(this, function (exports, acorn) { 'use strict';
 
-	var utils_hasNamedImports = hasNamedImports;
-
 	function hasNamedImports(mod) {
 		var i = mod.imports.length;
 
@@ -22,8 +20,6 @@
 			}
 		}
 	}
-
-	var utils_hasNamedExports = hasNamedExports;
 
 	function hasNamedExports(mod) {
 		var i = mod.exports.length;
@@ -68,8 +64,6 @@
 			return 'data:application/json;charset=utf-8;base64,' + btoa( this.toString() );
 		}
 	};
-
-	var src_SourceMap = SourceMap;
 
 	function utils_getRelativePath__getRelativePath ( from, to ) {
 		var fromParts, toParts, i;
@@ -147,7 +141,7 @@
 				getSemis( this.outro )
 			);
 
-			return new src_SourceMap({
+			return new SourceMap({
 				file: ( options.file ? options.file.split( /[\/\\]/ ).pop() : null ),
 				sources: this.sources.map( function ( source ) {
 					return options.file ? utils_getRelativePath__getRelativePath( options.file, source.filename ) : source.filename;
@@ -256,7 +250,7 @@
 		}
 	};
 
-	var src_Bundle = Bundle;
+
 
 	function stringify ( source ) {
 		return source.content.toString();
@@ -558,7 +552,7 @@
 		generateMap: function ( options ) {
 			options = options || {};
 
-			return new src_SourceMap({
+			return new SourceMap({
 				file: ( options.file ? options.file.split( /[\/\\]/ ).pop() : null ),
 				sources: [ options.source ? utils_getRelativePath__getRelativePath( options.file || '', options.source ) : null ],
 				sourcesContent: options.includeContent ? [ this.original ] : [ null ],
@@ -881,7 +875,7 @@
 		}
 	};
 
-	MagicString.Bundle = src_Bundle;
+	MagicString.Bundle = Bundle;
 
 	function adjust ( mappings, start, end, d ) {
 		var i = end;
@@ -931,10 +925,6 @@
 
 		return result;
 	}
-
-	var magic_string = MagicString;
-
-	var ast_walk = walk;
 
 	var shouldSkip = undefined;
 	var shouldAbort = undefined;
@@ -1025,7 +1015,6 @@
 		}
 	}
 
-	var annotate = annotateAst;
 	/*
 		This module traverse a module's AST, attaching scope information
 		to nodes as it goes, which is later used to determine which
@@ -1071,7 +1060,7 @@
 
 		var envDepth = 0;
 
-		ast_walk(ast, {
+		walk(ast, {
 			enter: function (node) {
 				if (node.type === 'ImportDeclaration' || node.type === 'ExportSpecifier') {
 					node._skip = true;
@@ -1220,7 +1209,7 @@
 	 * @param {string} source - the module's original source code
 	 * @returns {object} - { imports, exports, defaultExport }
 	 */
-	var ast_findImportsAndExports = findImportsAndExports;
+
 
 	function findImportsAndExports(ast, source) {
 		var imports = [];
@@ -1437,9 +1426,7 @@
 	}
 
 	var hasOwnProp = Object.prototype.hasOwnProperty;
-	var utils_hasOwnProp = hasOwnProp;
 
-	var ast_getUnscopedNames = getUnscopedNames;
 	function getUnscopedNames(mod) {
 		var unscoped = [],
 		    importedNames,
@@ -1454,10 +1441,10 @@
 					});
 				});
 			}
-			return utils_hasOwnProp.call(importedNames, name);
+			return hasOwnProp.call(importedNames, name);
 		}
 
-		ast_walk(mod.ast, {
+		walk(mod.ast, {
 			enter: function (node) {
 				// we're only interested in references, not property names etc
 				if (node._skip) return this.skip();
@@ -1485,7 +1472,6 @@
 		return unscoped;
 	}
 
-	var utils_disallowConflictingImports = disallowConflictingImports;
 	function disallowConflictingImports(imports) {
 		var usedNames = {};
 
@@ -1504,7 +1490,7 @@
 		}
 
 		function checkName(name) {
-			if (utils_hasOwnProp.call(usedNames, name)) {
+			if (hasOwnProp.call(usedNames, name)) {
 				throw new SyntaxError('Duplicated import (\'' + name + '\')');
 			}
 
@@ -1517,7 +1503,7 @@
 	 * @param {string} id - a module ID, or part thereof
 	 * @returns {string}
 	 */
-	var utils_sanitize = sanitize;
+
 
 	var RESERVED = 'break case class catch const continue debugger default delete do else export extends finally for function if import in instanceof let new return super switch this throw try typeof var void while with yield'.split(' ');
 	var INVALID_CHAR = /[^a-zA-Z0-9_$]/g;
@@ -1537,8 +1523,6 @@
 		return path.split(pathSplitRE);
 	}
 
-	var getModule = getStandaloneModule;
-
 	var SOURCEMAPPINGURL_REGEX = /^# sourceMappingURL=/;
 	function getStandaloneModule(options) {
 		var code = undefined,
@@ -1554,7 +1538,7 @@
 		var toRemove = [];
 
 		var mod = {
-			body: new magic_string(code),
+			body: new MagicString(code),
 			ast: ast || acorn.parse(code, {
 				ecmaVersion: 6,
 				sourceType: 'module',
@@ -1573,13 +1557,13 @@
 			return mod.body.remove(start, end);
 		});
 
-		var _findImportsAndExports = ast_findImportsAndExports(mod.ast, code);
+		var _findImportsAndExports = findImportsAndExports(mod.ast, code);
 
 		var imports = _findImportsAndExports.imports;
 		var exports = _findImportsAndExports.exports;
 		var defaultExport = _findImportsAndExports.defaultExport;
 
-		utils_disallowConflictingImports(imports);
+		disallowConflictingImports(imports);
 
 		mod.imports = imports;
 		mod.exports = exports;
@@ -1588,12 +1572,12 @@
 		var conflicts = {};
 
 		if (options.strict) {
-			annotate(mod.ast, {
+			annotateAst(mod.ast, {
 				trackAssignments: null
 			});
 
 			// TODO there's probably an easier way to get this array
-			Object.keys(mod.ast._declared).concat(ast_getUnscopedNames(mod)).forEach(function (n) {
+			Object.keys(mod.ast._declared).concat(getUnscopedNames(mod)).forEach(function (n) {
 				conflicts[n] = true;
 			});
 		}
@@ -1614,16 +1598,16 @@
 			moduleId = x.path;
 
 			// use existing value
-			if (utils_hasOwnProp.call(nameById, moduleId)) {
+			if (hasOwnProp.call(nameById, moduleId)) {
 				x.name = nameById[moduleId];
 				return;
 			}
 
 			// if user supplied a function, defer to it
 			if (userFn && (name = userFn(moduleId))) {
-				name = utils_sanitize(name);
+				name = sanitize(name);
 
-				if (utils_hasOwnProp.call(usedNames, name)) {
+				if (hasOwnProp.call(usedNames, name)) {
 					// TODO write a test for this
 					throw new Error('Naming collision: module ' + moduleId + ' cannot be called ' + name);
 				}
@@ -1636,9 +1620,9 @@
 				do {
 					i = parts.length;
 					while (i-- > 0) {
-						candidate = prefix + utils_sanitize(parts.slice(i).join('__'));
+						candidate = prefix + sanitize(parts.slice(i).join('__'));
 
-						if (!utils_hasOwnProp.call(usedNames, candidate)) {
+						if (!hasOwnProp.call(usedNames, candidate)) {
 							name = candidate;
 							break;
 						}
@@ -1657,19 +1641,17 @@
 		// use inferred names for default imports, wherever they
 		// don't clash with path-based names
 		imports.forEach(function (x) {
-			if (x.as && !utils_hasOwnProp.call(usedNames, x.as)) {
+			if (x.as && !hasOwnProp.call(usedNames, x.as)) {
 				inferredNames[x.path] = x.as;
 			}
 		});
 
 		imports.forEach(function (x) {
-			if (utils_hasOwnProp.call(inferredNames, x.path)) {
+			if (hasOwnProp.call(inferredNames, x.path)) {
 				x.name = inferredNames[x.path];
 			}
 		});
 	}
-
-	var utils_transformExportDeclaration = transformExportDeclaration;
 
 	function transformExportDeclaration(declaration, body) {
 		if (!declaration) {
@@ -1717,8 +1699,6 @@
 		}
 	}
 
-	var utils_packageResult = packageResult;
-
 	var ABSOLUTE_PATH = /^(?:[A-Z]:)?[\/\\]/i;
 
 	var warned = {};
@@ -1755,7 +1735,7 @@
 			map = body.generateMap({
 				includeContent: true,
 				file: sourceMapFile,
-				source: sourceMapFile && !isBundle ? utils_packageResult__getRelativePath(sourceMapFile, options.sourceMapSource) : null
+				source: sourceMapFile && !isBundle ? packageResult__getRelativePath(sourceMapFile, options.sourceMapSource) : null
 			});
 
 			if (options.sourceMap === 'inline') {
@@ -1782,7 +1762,7 @@
 		};
 	}
 
-	function utils_packageResult__getRelativePath(from, to) {
+	function packageResult__getRelativePath(from, to) {
 		var fromParts, toParts, i;
 
 		fromParts = splitPath(from);
@@ -1812,7 +1792,7 @@
 
 	function markBundleSourcemapLocations(bundle) {
 		bundle.modules.forEach(function (mod) {
-			ast_walk(mod.ast, {
+			walk(mod.ast, {
 				enter: function (node) {
 					mod.body.addSourcemapLocation(node.start);
 				}
@@ -1821,7 +1801,7 @@
 	}
 
 	function markModuleSourcemapLocations(mod) {
-		ast_walk(mod.ast, {
+		walk(mod.ast, {
 			enter: function (node) {
 				mod.body.addSourcemapLocation(node.start);
 			}
@@ -1834,7 +1814,7 @@
 	 * @param {string} importerPath - the (relative to `base`) path of the importing module
 	 * @returns {string}
 	 */
-	var utils_resolveId = resolveId;
+
 
 	function resolveId(importPath, importerPath) {
 		var resolved, importerParts, importParts;
@@ -1871,7 +1851,6 @@
 		};
 	}
 
-	var amd_getImportSummary = getImportSummary;
 	function getImportSummary(_ref) {
 		var imports = _ref.imports;
 		var absolutePaths = _ref.absolutePaths;
@@ -1906,23 +1885,20 @@
 		});
 
 		var ids = absolutePaths ? paths.map(function (relativePath) {
-			return utils_resolveId(relativePath, name);
+			return resolveId(relativePath, name);
 		}) : paths.slice();
 
 		return { ids: ids, paths: paths, names: names };
 	}
 
-	var amd_processName = processName;
 	function processName(name) {
 		return name ? quote(name) + ', ' : '';
 	}
 
-	var amd_processIds = processIds;
 	function processIds(ids) {
 		return ids.length ? '[' + ids.map(quote).join(', ') + '], ' : '';
 	}
 
-	var amd_amdIntro = amdIntro;
 	function amdIntro(_ref) {
 		var name = _ref.name;
 		var imports = _ref.imports;
@@ -1931,7 +1907,7 @@
 		var absolutePaths = _ref.absolutePaths;
 		var useStrict = _ref.useStrict;
 
-		var _getImportSummary = amd_getImportSummary({ name: name, imports: imports, absolutePaths: absolutePaths });
+		var _getImportSummary = getImportSummary({ name: name, imports: imports, absolutePaths: absolutePaths });
 
 		var ids = _getImportSummary.ids;
 		var names = _getImportSummary.names;
@@ -1941,7 +1917,7 @@
 			names.unshift('exports');
 		}
 
-		var intro = '\ndefine(' + amd_processName(name) + '' + amd_processIds(ids) + 'function (' + names.join(', ') + ') {\n\n';
+		var intro = '\ndefine(' + processName(name) + '' + processIds(ids) + 'function (' + names.join(', ') + ') {\n\n';
 
 		if (useStrict) {
 			intro += '' + indentStr + '\'use strict\';\n\n';
@@ -1950,15 +1926,15 @@
 		return intro;
 	}
 
-	var defaultsMode_amd = defaultsMode_amd__amd;
-	function defaultsMode_amd__amd(mod, options) {
+	var amd__default = amd__amd;
+	function amd__amd(mod, options) {
 		mod.imports.forEach(function (x) {
 			mod.body.remove(x.start, x.next);
 		});
 
-		utils_transformExportDeclaration(mod.exports[0], mod.body);
+		transformExportDeclaration(mod.exports[0], mod.body);
 
-		var intro = amd_amdIntro({
+		var intro = amdIntro({
 			name: options.amdName,
 			imports: mod.imports,
 			absolutePaths: options.absolutePaths,
@@ -1968,15 +1944,15 @@
 
 		mod.body.trim().indent().prepend(intro).trim().append('\n\n});');
 
-		return utils_packageResult(mod, mod.body, options, 'toAmd');
+		return packageResult(mod, mod.body, options, 'toAmd');
 	}
 
-	var defaultsMode_cjs = defaultsMode_cjs__cjs;
-	function defaultsMode_cjs__cjs(mod, options) {
+	var cjs__default = cjs__cjs;
+	function cjs__cjs(mod, options) {
 		var seen = {};
 
 		mod.imports.forEach(function (x) {
-			if (!utils_hasOwnProp.call(seen, x.path)) {
+			if (!hasOwnProp.call(seen, x.path)) {
 				var replacement = x.isEmpty ? '' + req(x.path) + ';' : 'var ' + x.as + ' = ' + req(x.path) + ';';
 				mod.body.replace(x.start, x.end, replacement);
 
@@ -2006,10 +1982,9 @@
 			mod.body.prepend('\'use strict\';\n\n').trimLines();
 		}
 
-		return utils_packageResult(mod, mod.body, options, 'toCjs');
+		return packageResult(mod, mod.body, options, 'toCjs');
 	}
 
-	var umd_umdIntro = umdIntro;
 	function umdIntro(_ref) {
 		var amdName = _ref.amdName;
 		var name = _ref.name;
@@ -2025,9 +2000,9 @@
 		var intro = undefined;
 
 		if (!hasExports && !imports.length) {
-			intro = '(function (factory) {\n\t\t\t\t!(typeof exports === \'object\' && typeof module !== \'undefined\') &&\n\t\t\t\ttypeof define === \'function\' && define.amd ? define(' + amd_processName(amdName) + 'factory) :\n\t\t\t\tfactory()\n\t\t\t}(function () {' + useStrictPragma + '\n\n\t\t\t';
+			intro = '(function (factory) {\n\t\t\t\t!(typeof exports === \'object\' && typeof module !== \'undefined\') &&\n\t\t\t\ttypeof define === \'function\' && define.amd ? define(' + processName(amdName) + 'factory) :\n\t\t\t\tfactory()\n\t\t\t}(function () {' + useStrictPragma + '\n\n\t\t\t';
 		} else {
-			var _getImportSummary = amd_getImportSummary({ imports: imports, name: amdName, absolutePaths: absolutePaths });
+			var _getImportSummary = getImportSummary({ imports: imports, name: amdName, absolutePaths: absolutePaths });
 
 			var ids = _getImportSummary.ids;
 			var paths = _getImportSummary.paths;
@@ -2048,7 +2023,7 @@
 					names.unshift('exports');
 				}
 
-				amdExport = 'define(' + amd_processName(amdName) + '' + amd_processIds(ids) + 'factory)';
+				amdExport = 'define(' + processName(amdName) + '' + processIds(ids) + 'factory)';
 				defaultsBlock = '';
 				if (externalDefaults && externalDefaults.length > 0) {
 					defaultsBlock = externalDefaults.map(function (x) {
@@ -2056,7 +2031,7 @@
 					}).join('\n') + '\n\n';
 				}
 			} else {
-				amdExport = 'define(' + amd_processName(amdName) + '' + amd_processIds(ids) + 'factory)';
+				amdExport = 'define(' + processName(amdName) + '' + processIds(ids) + 'factory)';
 				cjsExport = (hasExports ? 'module.exports = ' : '') + ('factory(' + paths.map(req).join(', ') + ')');
 				globalExport = (hasExports ? 'global.' + name + ' = ' : '') + ('factory(' + names.map(globalify).join(', ') + ')');
 
@@ -2086,26 +2061,23 @@
 	EsperantoError.prototype.constructor = EsperantoError;
 	EsperantoError.prototype.name = 'EsperantoError';
 
-	var utils_EsperantoError = EsperantoError;
-
-	var umd_requireName = requireName;
 	function requireName(options) {
 		if (!options.name) {
-			throw new utils_EsperantoError('You must supply a `name` option for UMD modules', {
+			throw new EsperantoError('You must supply a `name` option for UMD modules', {
 				code: 'MISSING_NAME'
 			});
 		}
 	}
 
-	var defaultsMode_umd = defaultsMode_umd__umd;
-	function defaultsMode_umd__umd(mod, options) {
-		umd_requireName(options);
+	var umd__default = umd__umd;
+	function umd__umd(mod, options) {
+		requireName(options);
 
 		mod.imports.forEach(function (x) {
 			mod.body.remove(x.start, x.next);
 		});
 
-		var intro = umd_umdIntro({
+		var intro = umdIntro({
 			hasExports: mod.exports.length > 0,
 			imports: mod.imports,
 			amdName: options.amdName,
@@ -2115,20 +2087,18 @@
 			useStrict: options.useStrict !== false
 		});
 
-		utils_transformExportDeclaration(mod.exports[0], mod.body);
+		transformExportDeclaration(mod.exports[0], mod.body);
 
 		mod.body.indent().prepend(intro).trimLines().append('\n\n}));');
 
-		return utils_packageResult(mod, mod.body, options, 'toUmd');
+		return packageResult(mod, mod.body, options, 'toUmd');
 	}
 
 	var defaultsMode = {
-		amd: defaultsMode_amd,
-		cjs: defaultsMode_cjs,
-		umd: defaultsMode_umd
+		amd: amd__default,
+		cjs: cjs__default,
+		umd: umd__default
 	};
-
-	var utils_gatherImports = gatherImports;
 
 	function gatherImports(imports) {
 		var chains = {};
@@ -2153,8 +2123,6 @@
 
 		return [chains, identifierReplacements];
 	}
-
-	var utils_getExportNames = getExportNames;
 
 	function getExportNames(exports) {
 		var result = {};
@@ -2183,7 +2151,7 @@
 	 * @param {array} imports - the array of imports
 	 * @returns {array} [ importedBindings, importedNamespaces ]
 	 */
-	var utils_getReadOnlyIdentifiers = getReadOnlyIdentifiers;
+
 
 	function getReadOnlyIdentifiers(imports) {
 		var importedBindings = {},
@@ -2204,7 +2172,6 @@
 		return [importedBindings, importedNamespaces];
 	}
 
-	var ast_disallowIllegalReassignment = disallowIllegalReassignment;
 	var bindingMessage = 'Cannot reassign imported binding ',
 	    namespaceMessage = 'Cannot reassign imported binding of namespace ';
 	function disallowIllegalReassignment(node, importedBindings, importedNamespaces, scope) {
@@ -2230,15 +2197,14 @@
 
 		var name = assignee.name;
 
-		if (utils_hasOwnProp.call(isNamespaceAssignment ? importedNamespaces : importedBindings, name) && !scope.contains(name)) {
+		if (hasOwnProp.call(isNamespaceAssignment ? importedNamespaces : importedBindings, name) && !scope.contains(name)) {
 			throw new Error((isNamespaceAssignment ? namespaceMessage : bindingMessage) + '`' + name + '`');
 		}
 	}
 
-	var ast_replaceIdentifiers = replaceIdentifiers;
 	function replaceIdentifiers(body, node, identifierReplacements, scope) {
 		var name = node.name;
-		var replacement = utils_hasOwnProp.call(identifierReplacements, name) && identifierReplacements[name];
+		var replacement = hasOwnProp.call(identifierReplacements, name) && identifierReplacements[name];
 
 		// TODO unchanged identifiers shouldn't have got this far -
 		// remove the `replacement !== name` safeguard once that's the case
@@ -2248,7 +2214,6 @@
 		}
 	}
 
-	var ast_rewriteExportAssignments = rewriteExportAssignments;
 	function rewriteExportAssignments(body, node, parent, exports, scope, capturedUpdates) {
 		var assignee = undefined;
 
@@ -2270,7 +2235,7 @@
 			return; // shadows an export
 		}
 
-		if (exports && utils_hasOwnProp.call(exports, name)) {
+		if (exports && hasOwnProp.call(exports, name)) {
 			var exportAs = exports[name];
 
 			if (!!capturedUpdates) {
@@ -2297,15 +2262,13 @@
 		}
 	}
 
-	var traverse = traverseAst;
-
 	function traverseAst(ast, body, identifierReplacements, importedBindings, importedNamespaces, exportNames) {
 		var scope = ast._scope;
 		var blockScope = ast._blockScope;
 		var capturedUpdates = null;
 		var previousCapturedUpdates = null;
 
-		ast_walk(ast, {
+		walk(ast, {
 			enter: function (node, parent) {
 				// we're only interested in references, not property names etc
 				if (node._skip) return this.skip();
@@ -2328,16 +2291,16 @@
 					return;
 				}
 
-				ast_disallowIllegalReassignment(node, importedBindings, importedNamespaces, scope);
+				disallowIllegalReassignment(node, importedBindings, importedNamespaces, scope);
 
 				// Rewrite assignments to exports inside functions, to keep bindings live.
 				// This call may mutate `capturedUpdates`, which is used elsewhere
 				if (scope !== ast._scope) {
-					ast_rewriteExportAssignments(body, node, parent, exportNames, scope, capturedUpdates);
+					rewriteExportAssignments(body, node, parent, exportNames, scope, capturedUpdates);
 				}
 
 				if (node.type === 'Identifier' && parent.type !== 'FunctionExpression') {
-					ast_replaceIdentifiers(body, node, identifierReplacements, scope);
+					replaceIdentifiers(body, node, identifierReplacements, scope);
 				}
 
 				// Replace top-level this with undefined ES6 8.1.1.5.4
@@ -2369,17 +2332,15 @@
 		return ' exports.' + c.exportAs + ' = ' + c.name + ';';
 	}
 
-	var utils_transformBody = transformBody;
-
 	function transformBody(mod, body, options) {
-		var _gatherImports = utils_gatherImports(mod.imports);
+		var _gatherImports = gatherImports(mod.imports);
 
 		var chains = _gatherImports[0];
 		var identifierReplacements = _gatherImports[1];
 
-		var exportNames = utils_getExportNames(mod.exports);
+		var exportNames = getExportNames(mod.exports);
 
-		var _getReadOnlyIdentifiers = utils_getReadOnlyIdentifiers(mod.imports);
+		var _getReadOnlyIdentifiers = getReadOnlyIdentifiers(mod.imports);
 
 		var importedBindings = _getReadOnlyIdentifiers[0];
 		var importedNamespaces = _getReadOnlyIdentifiers[1];
@@ -2387,7 +2348,7 @@
 		// ensure no conflict with `exports`
 		identifierReplacements.exports = deconflict('exports', mod.ast._declared);
 
-		traverse(mod.ast, body, identifierReplacements, importedBindings, importedNamespaces, exportNames);
+		traverseAst(mod.ast, body, identifierReplacements, importedBindings, importedNamespaces, exportNames);
 
 		// Remove import statements from the body of the module
 		mod.imports.forEach(function (x) {
@@ -2469,7 +2430,7 @@
 	}
 
 	function deconflict(name, declared) {
-		while (utils_hasOwnProp.call(declared, name)) {
+		while (hasOwnProp.call(declared, name)) {
 			name = '_' + name;
 		}
 
@@ -2478,7 +2439,7 @@
 
 	var strictMode_amd = strictMode_amd__amd;
 	function strictMode_amd__amd(mod, options) {
-		var intro = amd_amdIntro({
+		var intro = amdIntro({
 			name: options.amdName,
 			absolutePaths: options.absolutePaths,
 			imports: mod.imports,
@@ -2487,13 +2448,13 @@
 			useStrict: options.useStrict !== false
 		});
 
-		utils_transformBody(mod, mod.body, {
+		transformBody(mod, mod.body, {
 			intro: intro,
 			outro: '\n\n});',
 			_evilES3SafeReExports: options._evilES3SafeReExports
 		});
 
-		return utils_packageResult(mod, mod.body, options, 'toAmd');
+		return packageResult(mod, mod.body, options, 'toAmd');
 	}
 
 	var strictMode_cjs = strictMode_cjs__cjs;
@@ -2502,7 +2463,7 @@
 
 		// Create block of require statements
 		var importBlock = mod.imports.map(function (x) {
-			if (!utils_hasOwnProp.call(seen, x.path)) {
+			if (!hasOwnProp.call(seen, x.path)) {
 				seen[x.path] = true;
 
 				if (x.isEmpty) {
@@ -2513,7 +2474,7 @@
 			}
 		}).filter(Boolean).join('\n');
 
-		utils_transformBody(mod, mod.body, {
+		transformBody(mod, mod.body, {
 			header: importBlock,
 			_evilES3SafeReExports: options._evilES3SafeReExports
 		});
@@ -2522,14 +2483,14 @@
 			mod.body.prepend('\'use strict\';\n\n').trimLines();
 		}
 
-		return utils_packageResult(mod, mod.body, options, 'toCjs');
+		return packageResult(mod, mod.body, options, 'toCjs');
 	}
 
 	var strictMode_umd = strictMode_umd__umd;
 	function strictMode_umd__umd(mod, options) {
-		umd_requireName(options);
+		requireName(options);
 
-		var intro = umd_umdIntro({
+		var intro = umdIntro({
 			hasExports: mod.exports.length > 0,
 			imports: mod.imports,
 			amdName: options.amdName,
@@ -2540,13 +2501,13 @@
 			useStrict: options.useStrict !== false
 		});
 
-		utils_transformBody(mod, mod.body, {
+		transformBody(mod, mod.body, {
 			intro: intro,
 			outro: '\n\n}));',
 			_evilES3SafeReExports: options._evilES3SafeReExports
 		});
 
-		return utils_packageResult(mod, mod.body, options, 'toUmd');
+		return packageResult(mod, mod.body, options, 'toUmd');
 	}
 
 	var strictMode = {
@@ -2561,14 +2522,14 @@
 		strictMode: strictMode
 	};
 
-	var builders_defaultsMode_amd = builders_defaultsMode_amd__amd;
-	function builders_defaultsMode_amd__amd(bundle, options) {
+	var defaultsMode_amd = defaultsMode_amd__amd;
+	function defaultsMode_amd__amd(bundle, options) {
 		var defaultName = bundle.entryModule.identifierReplacements['default'];
 		if (defaultName) {
 			bundle.body.append('\n\nreturn ' + defaultName + ';');
 		}
 
-		var intro = amd_amdIntro({
+		var intro = amdIntro({
 			name: options.amdName,
 			imports: bundle.externalModules,
 			indentStr: bundle.body.getIndentString(),
@@ -2576,11 +2537,11 @@
 		});
 
 		bundle.body.indent().prepend(intro).trimLines().append('\n\n});');
-		return utils_packageResult(bundle, bundle.body, options, 'toAmd', true);
+		return packageResult(bundle, bundle.body, options, 'toAmd', true);
 	}
 
-	var builders_defaultsMode_cjs = builders_defaultsMode_cjs__cjs;
-	function builders_defaultsMode_cjs__cjs(bundle, options) {
+	var defaultsMode_cjs = defaultsMode_cjs__cjs;
+	function defaultsMode_cjs__cjs(bundle, options) {
 		var importBlock = bundle.externalModules.map(function (x) {
 			return 'var ' + x.name + ' = ' + req(x.id) + ';';
 		}).join('\n');
@@ -2598,16 +2559,16 @@
 			bundle.body.prepend('\'use strict\';\n\n').trimLines();
 		}
 
-		return utils_packageResult(bundle, bundle.body, options, 'toCjs', true);
+		return packageResult(bundle, bundle.body, options, 'toCjs', true);
 	}
 
-	var builders_defaultsMode_umd = builders_defaultsMode_umd__umd;
-	function builders_defaultsMode_umd__umd(bundle, options) {
-		umd_requireName(options);
+	var defaultsMode_umd = defaultsMode_umd__umd;
+	function defaultsMode_umd__umd(bundle, options) {
+		requireName(options);
 
 		var entry = bundle.entryModule;
 
-		var intro = umd_umdIntro({
+		var intro = umdIntro({
 			hasExports: entry.exports.length > 0,
 			imports: bundle.externalModules,
 			amdName: options.amdName,
@@ -2622,16 +2583,14 @@
 
 		bundle.body.indent().prepend(intro).trimLines().append('\n\n}));');
 
-		return utils_packageResult(bundle, bundle.body, options, 'toUmd', true);
+		return packageResult(bundle, bundle.body, options, 'toUmd', true);
 	}
 
 	var builders_defaultsMode = {
-		amd: builders_defaultsMode_amd,
-		cjs: builders_defaultsMode_cjs,
-		umd: builders_defaultsMode_umd
+		amd: defaultsMode_amd,
+		cjs: defaultsMode_cjs,
+		umd: defaultsMode_umd
 	};
-
-	var utils_getExportBlock = getExportBlock;
 
 	function getExportBlock(entry) {
 		var name = entry.identifierReplacements["default"];
@@ -2659,10 +2618,10 @@
 		}
 
 		if (entry.defaultExport) {
-			bundle.body.append('\n\n' + utils_getExportBlock(entry));
+			bundle.body.append('\n\n' + getExportBlock(entry));
 		}
 
-		var intro = amd_amdIntro({
+		var intro = amdIntro({
 			name: options.amdName,
 			imports: bundle.externalModules,
 			hasExports: entry.exports.length,
@@ -2671,7 +2630,7 @@
 		});
 
 		bundle.body.indent().prepend(intro).trimLines().append('\n\n});');
-		return utils_packageResult(bundle, bundle.body, options, 'toAmd', true);
+		return packageResult(bundle, bundle.body, options, 'toAmd', true);
 	}
 
 	function builders_strictMode_amd__needsDefault(externalModule) {
@@ -2697,24 +2656,24 @@
 		}
 
 		if (entry.defaultExport) {
-			bundle.body.append('\n\n' + utils_getExportBlock(entry));
+			bundle.body.append('\n\n' + getExportBlock(entry));
 		}
 
 		if (options.useStrict !== false) {
 			bundle.body.prepend('\'use strict\';\n\n').trimLines();
 		}
 
-		return utils_packageResult(bundle, bundle.body, options, 'toCjs', true);
+		return packageResult(bundle, bundle.body, options, 'toCjs', true);
 	}
 
 	var builders_strictMode_umd = builders_strictMode_umd__umd;
 
 	function builders_strictMode_umd__umd(bundle, options) {
-		umd_requireName(options);
+		requireName(options);
 
 		var entry = bundle.entryModule;
 
-		var intro = umd_umdIntro({
+		var intro = umdIntro({
 			hasExports: entry.exports.length > 0,
 			imports: bundle.externalModules,
 			externalDefaults: bundle.externalModules.filter(builders_strictMode_umd__needsDefault),
@@ -2726,12 +2685,12 @@
 		});
 
 		if (entry.defaultExport) {
-			bundle.body.append('\n\n' + utils_getExportBlock(entry));
+			bundle.body.append('\n\n' + getExportBlock(entry));
 		}
 
 		bundle.body.indent().prepend(intro).trimLines().append('\n\n}));');
 
-		return utils_packageResult(bundle, bundle.body, options, 'toUmd', true);
+		return packageResult(bundle, bundle.body, options, 'toUmd', true);
 	}
 
 	function builders_strictMode_umd__needsDefault(externalModule) {
@@ -2750,7 +2709,6 @@
 		strictMode: builders_strictMode
 	};
 
-	var builders_concat = concat;
 	function concat(bundle, options) {
 		// This bundle must be self-contained - no imports or exports
 		if (bundle.externalModules.length || bundle.entryModule.exports.length) {
@@ -2772,7 +2730,7 @@
 
 		bundle.body.trimLines().indent(indent).prepend(intro).append(outro);
 
-		return utils_packageResult(bundle, bundle.body, options, 'toString', true);
+		return packageResult(bundle, bundle.body, options, 'toString', true);
 	}
 
 	var deprecateMessage = 'options.defaultOnly has been deprecated, and is now standard behaviour. To use named imports/exports, pass `strict: true`.';
@@ -2782,7 +2740,7 @@
 		return function (source) {
 			var options = arguments[1] === undefined ? {} : arguments[1];
 
-			var mod = getModule({
+			var mod = getStandaloneModule({
 				source: source,
 				getModuleName: options.getModuleName,
 				strict: options.strict
@@ -2802,7 +2760,7 @@
 
 			if (!options.strict) {
 				// ensure there are no named imports/exports. TODO link to a wiki page...
-				if (utils_hasNamedImports(mod) || utils_hasNamedExports(mod)) {
+				if (hasNamedImports(mod) || hasNamedExports(mod)) {
 					throw new Error('You must be in strict mode (pass `strict: true`) to use named imports or exports');
 				}
 
@@ -2836,7 +2794,7 @@
 				},
 
 				concat: function (options) {
-					return builders_concat(bundle, options || {});
+					return concat(bundle, options || {});
 				}
 			};
 
@@ -2853,7 +2811,7 @@
 
 				if (!options.strict) {
 					// ensure there are no named imports/exports
-					if (utils_hasNamedExports(bundle.entryModule)) {
+					if (hasNamedExports(bundle.entryModule)) {
 						throw new Error('Entry module can only have named exports in strict mode (pass `strict: true`)');
 					}
 
@@ -2897,4 +2855,4 @@
 	exports.toUmd = toUmd;
 
 }));
-//# sourceMappingURL=/Users/tricknotes/src/github.com/esperantojs/esperanto/.gobble-build/03-esperantoBundle/1/esperanto.browser.js.map
+//# sourceMappingURL=/www/ESPERANTO/esperanto/.gobble-build/03-esperantoBundle/1/esperanto.browser.js.map

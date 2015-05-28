@@ -1,5 +1,5 @@
 /*
-	esperanto.js v0.7.0 - 2015-05-12
+	esperanto.js v0.7.1 - 2015-05-27
 	http://esperantojs.org
 
 	Released under the MIT License.
@@ -13,8 +13,6 @@ MagicString = ('default' in MagicString ? MagicString['default'] : MagicString);
 var _path = require('path');
 var sander = require('sander');
 
-var utils_hasNamedImports = hasNamedImports;
-
 function hasNamedImports(mod) {
 	var i = mod.imports.length;
 
@@ -25,8 +23,6 @@ function hasNamedImports(mod) {
 	}
 }
 
-var utils_hasNamedExports = hasNamedExports;
-
 function hasNamedExports(mod) {
 	var i = mod.exports.length;
 
@@ -36,8 +32,6 @@ function hasNamedExports(mod) {
 		}
 	}
 }
-
-var ast_walk = walk;
 
 var shouldSkip = undefined;
 var shouldAbort = undefined;
@@ -128,7 +122,6 @@ function globalify(name) {
 	}
 }
 
-var annotate = annotateAst;
 /*
 	This module traverse a module's AST, attaching scope information
 	to nodes as it goes, which is later used to determine which
@@ -174,7 +167,7 @@ function annotateAst(ast, options) {
 
 	var envDepth = 0;
 
-	ast_walk(ast, {
+	walk(ast, {
 		enter: function (node) {
 			if (node.type === 'ImportDeclaration' || node.type === 'ExportSpecifier') {
 				node._skip = true;
@@ -323,7 +316,7 @@ function annotateAst(ast, options) {
  * @param {string} source - the module's original source code
  * @returns {object} - { imports, exports, defaultExport }
  */
-var ast_findImportsAndExports = findImportsAndExports;
+
 
 function findImportsAndExports(ast, source) {
 	var imports = [];
@@ -540,9 +533,7 @@ function processExport(node, source) {
 }
 
 var hasOwnProp = Object.prototype.hasOwnProperty;
-var utils_hasOwnProp = hasOwnProp;
 
-var ast_getUnscopedNames = getUnscopedNames;
 function getUnscopedNames(mod) {
 	var unscoped = [],
 	    importedNames,
@@ -557,10 +548,10 @@ function getUnscopedNames(mod) {
 				});
 			});
 		}
-		return utils_hasOwnProp.call(importedNames, name);
+		return hasOwnProp.call(importedNames, name);
 	}
 
-	ast_walk(mod.ast, {
+	walk(mod.ast, {
 		enter: function (node) {
 			// we're only interested in references, not property names etc
 			if (node._skip) return this.skip();
@@ -588,7 +579,6 @@ function getUnscopedNames(mod) {
 	return unscoped;
 }
 
-var utils_disallowConflictingImports = disallowConflictingImports;
 function disallowConflictingImports(imports) {
 	var usedNames = {};
 
@@ -607,7 +597,7 @@ function disallowConflictingImports(imports) {
 	}
 
 	function checkName(name) {
-		if (utils_hasOwnProp.call(usedNames, name)) {
+		if (hasOwnProp.call(usedNames, name)) {
 			throw new SyntaxError('Duplicated import (\'' + name + '\')');
 		}
 
@@ -620,7 +610,7 @@ function disallowConflictingImports(imports) {
  * @param {string} id - a module ID, or part thereof
  * @returns {string}
  */
-var utils_sanitize = sanitize;
+
 
 var RESERVED = 'break case class catch const continue debugger default delete do else export extends finally for function if import in instanceof let new return super switch this throw try typeof var void while with yield'.split(' ');
 var INVALID_CHAR = /[^a-zA-Z0-9_$]/g;
@@ -639,8 +629,6 @@ var pathSplitRE = /\/|\\/;
 function splitPath(path) {
 	return path.split(pathSplitRE);
 }
-
-var standalone_getModule = getStandaloneModule;
 
 var SOURCEMAPPINGURL_REGEX = /^# sourceMappingURL=/;
 function getStandaloneModule(options) {
@@ -676,13 +664,13 @@ function getStandaloneModule(options) {
 		return mod.body.remove(start, end);
 	});
 
-	var _findImportsAndExports = ast_findImportsAndExports(mod.ast, code);
+	var _findImportsAndExports = findImportsAndExports(mod.ast, code);
 
 	var imports = _findImportsAndExports.imports;
 	var exports = _findImportsAndExports.exports;
 	var defaultExport = _findImportsAndExports.defaultExport;
 
-	utils_disallowConflictingImports(imports);
+	disallowConflictingImports(imports);
 
 	mod.imports = imports;
 	mod.exports = exports;
@@ -691,12 +679,12 @@ function getStandaloneModule(options) {
 	var conflicts = {};
 
 	if (options.strict) {
-		annotate(mod.ast, {
+		annotateAst(mod.ast, {
 			trackAssignments: null
 		});
 
 		// TODO there's probably an easier way to get this array
-		Object.keys(mod.ast._declared).concat(ast_getUnscopedNames(mod)).forEach(function (n) {
+		Object.keys(mod.ast._declared).concat(getUnscopedNames(mod)).forEach(function (n) {
 			conflicts[n] = true;
 		});
 	}
@@ -717,16 +705,16 @@ function determineImportNames(imports, userFn, usedNames) {
 		moduleId = x.path;
 
 		// use existing value
-		if (utils_hasOwnProp.call(nameById, moduleId)) {
+		if (hasOwnProp.call(nameById, moduleId)) {
 			x.name = nameById[moduleId];
 			return;
 		}
 
 		// if user supplied a function, defer to it
 		if (userFn && (name = userFn(moduleId))) {
-			name = utils_sanitize(name);
+			name = sanitize(name);
 
-			if (utils_hasOwnProp.call(usedNames, name)) {
+			if (hasOwnProp.call(usedNames, name)) {
 				// TODO write a test for this
 				throw new Error('Naming collision: module ' + moduleId + ' cannot be called ' + name);
 			}
@@ -739,9 +727,9 @@ function determineImportNames(imports, userFn, usedNames) {
 			do {
 				i = parts.length;
 				while (i-- > 0) {
-					candidate = prefix + utils_sanitize(parts.slice(i).join('__'));
+					candidate = prefix + sanitize(parts.slice(i).join('__'));
 
-					if (!utils_hasOwnProp.call(usedNames, candidate)) {
+					if (!hasOwnProp.call(usedNames, candidate)) {
 						name = candidate;
 						break;
 					}
@@ -760,13 +748,13 @@ function determineImportNames(imports, userFn, usedNames) {
 	// use inferred names for default imports, wherever they
 	// don't clash with path-based names
 	imports.forEach(function (x) {
-		if (x.as && !utils_hasOwnProp.call(usedNames, x.as)) {
+		if (x.as && !hasOwnProp.call(usedNames, x.as)) {
 			inferredNames[x.path] = x.as;
 		}
 	});
 
 	imports.forEach(function (x) {
-		if (utils_hasOwnProp.call(inferredNames, x.path)) {
+		if (hasOwnProp.call(inferredNames, x.path)) {
 			x.name = inferredNames[x.path];
 		}
 	});
@@ -778,7 +766,7 @@ function determineImportNames(imports, userFn, usedNames) {
  * @param {string} importerPath - the (relative to `base`) path of the importing module
  * @returns {string}
  */
-var utils_resolveId = resolveId;
+
 
 function resolveId(importPath, importerPath) {
 	var resolved, importerParts, importParts;
@@ -815,7 +803,6 @@ function resolveAgainst(importerPath) {
 	};
 }
 
-var utils_promiseSequence = promiseSequence;
 function promiseSequence(arr, callback) {
 	var len = arr.length;
 	var results = new Array(len);
@@ -847,7 +834,7 @@ function promiseSequence(arr, callback) {
  * @param {object} entry - the bundle's 'entry module'
  * @returns {array} - the sorted module list
  */
-var utils_sortModules = sortModules;
+
 
 function sortModules(entry) {
 	var seen = {};
@@ -880,7 +867,7 @@ function sortModules(entry) {
 				strongDeps[id].push(imported);
 			}
 
-			if (utils_hasOwnProp.call(seen, imported.id)) {
+			if (hasOwnProp.call(seen, imported.id)) {
 				// we need to prevent an infinite loop, and note that
 				// we need to check for strong/weak dependency relationships
 				hasCycles = true;
@@ -892,7 +879,7 @@ function sortModules(entry) {
 
 		// add second (and third...) order dependencies
 		function addStrongDependencies(dependency) {
-			if (utils_hasOwnProp.call(stronglyDependsOn[id], dependency.id)) return;
+			if (hasOwnProp.call(stronglyDependsOn[id], dependency.id)) return;
 
 			stronglyDependsOn[id][dependency.id] = true;
 			strongDeps[dependency.id].forEach(addStrongDependencies);
@@ -948,7 +935,7 @@ function referencesAtTopLevel(a, b) {
 	// see if any of those bindings are referenced at the top level
 	var referencedAtTopLevel = false;
 
-	ast_walk(a.ast, {
+	walk(a.ast, {
 		enter: function (node) {
 			if (/^Import/.test(node.type) || node._scope && node._scope.parent) {
 				return this.skip();
@@ -972,7 +959,7 @@ function referencesAtTopLevel(a, b) {
  * @param {array} modules - the bundle's array of modules
  * @param {object} moduleLookup - modules indexed by their ID
  */
-var utils_resolveChains = resolveChains;
+
 
 function resolveChains(modules, moduleLookup) {
 	var chains = {};
@@ -999,7 +986,7 @@ function resolveChains(modules, moduleLookup) {
 			if (!x.specifiers) return;
 
 			x.specifiers.forEach(function (s) {
-				if (utils_hasOwnProp.call(origin, s.name)) {
+				if (hasOwnProp.call(origin, s.name)) {
 					chains['' + s.name + '@' + mod.id] = origin[s.name];
 				}
 			});
@@ -1033,7 +1020,7 @@ function resolveChains(modules, moduleLookup) {
 function setOrigin(specifier, hash, chains, moduleLookup) {
 	var isChained = undefined;
 
-	while (utils_hasOwnProp.call(chains, hash)) {
+	while (hasOwnProp.call(chains, hash)) {
 		hash = chains[hash];
 		isChained = true;
 	}
@@ -1088,7 +1075,7 @@ function getUniqueNames(bundle) {
 	// infer names from default imports - e.g. with `import _ from './utils'`,
 	// use '_' instead of generating a name from 'utils'
 	function inferName(x) {
-		if (x.isDefault && !utils_hasOwnProp.call(names, x.module.id) && !utils_hasOwnProp.call(used, x.as)) {
+		if (x.isDefault && !hasOwnProp.call(names, x.module.id) && !hasOwnProp.call(used, x.as)) {
 			names[x.module.id] = x.as;
 			used[x.as] = true;
 		}
@@ -1101,7 +1088,7 @@ function getUniqueNames(bundle) {
 	// introducing conflicts
 	modules.concat(externalModules).forEach(function (mod) {
 		// is this already named?
-		if (utils_hasOwnProp.call(names, mod.id)) {
+		if (hasOwnProp.call(names, mod.id)) {
 			mod.name = names[mod.id];
 			return;
 		}
@@ -1111,14 +1098,14 @@ function getUniqueNames(bundle) {
 		var i = parts.length;
 
 		while (i--) {
-			name = utils_sanitize(parts.slice(i).join('_'));
+			name = sanitize(parts.slice(i).join('_'));
 
-			if (!utils_hasOwnProp.call(used, name)) {
+			if (!hasOwnProp.call(used, name)) {
 				break;
 			}
 		}
 
-		while (utils_hasOwnProp.call(used, name)) {
+		while (hasOwnProp.call(used, name)) {
 			name = '_' + name;
 		}
 
@@ -1128,8 +1115,6 @@ function getUniqueNames(bundle) {
 
 	return names;
 }
-
-var combine_populateExternalModuleImports = populateExternalModuleImports;
 
 function populateExternalModuleImports(bundle) {
 	bundle.modules.forEach(function (mod) {
@@ -1151,8 +1136,6 @@ function populateExternalModuleImports(bundle) {
 	});
 }
 
-var combine_getRenamedImports = getRenamedImports;
-
 function getRenamedImports(mod) {
 	var renamed = [];
 
@@ -1169,7 +1152,6 @@ function getRenamedImports(mod) {
 	return renamed;
 }
 
-var combine_topLevelScopeConflicts = topLevelScopeConflicts;
 function topLevelScopeConflicts(bundle) {
 	var conflicts = {};
 	var inBundle = {};
@@ -1182,7 +1164,7 @@ function topLevelScopeConflicts(bundle) {
 		.concat(mod.ast._topLevelNames)
 
 		// all unattributed identifiers could collide with top scope
-		.concat(ast_getUnscopedNames(mod)).concat(importNames).concat(combine_getRenamedImports(mod));
+		.concat(getUnscopedNames(mod)).concat(importNames).concat(getRenamedImports(mod));
 
 		if (mod._exportsNamespace) {
 			conflicts[mod.name] = true;
@@ -1190,7 +1172,7 @@ function topLevelScopeConflicts(bundle) {
 
 		// merge this module's top scope with bundle top scope
 		names.forEach(function (name) {
-			if (utils_hasOwnProp.call(inBundle, name)) {
+			if (hasOwnProp.call(inBundle, name)) {
 				conflicts[name] = true;
 			} else {
 				inBundle[name] = true;
@@ -1207,10 +1189,10 @@ function topLevelScopeConflicts(bundle) {
  * @param {object} bundle - the bundle
  * @returns {object}
  */
-var combine_populateIdentifierReplacements = populateIdentifierReplacements;
+
 function populateIdentifierReplacements(bundle) {
 	// first, discover conflicts
-	var conflicts = combine_topLevelScopeConflicts(bundle);
+	var conflicts = topLevelScopeConflicts(bundle);
 
 	// then figure out what identifiers need to be created
 	// for default exports
@@ -1221,9 +1203,9 @@ function populateIdentifierReplacements(bundle) {
 			var result = undefined;
 
 			if (x.hasDeclaration && x.name) {
-				result = utils_hasOwnProp.call(conflicts, x.name) || otherModulesDeclare(mod, x.name) ? '' + mod.name + '__' + x.name : x.name;
+				result = hasOwnProp.call(conflicts, x.name) || otherModulesDeclare(mod, x.name) ? '' + mod.name + '__' + x.name : x.name;
 			} else {
-				result = utils_hasOwnProp.call(conflicts, mod.name) || x.value !== mod.name && ~mod.ast._topLevelNames.indexOf(mod.name) || otherModulesDeclare(mod, mod.name) ? '' + mod.name + '__default' : mod.name;
+				result = hasOwnProp.call(conflicts, mod.name) || x.value !== mod.name && ~mod.ast._topLevelNames.indexOf(mod.name) || otherModulesDeclare(mod, mod.name) ? '' + mod.name + '__default' : mod.name;
 			}
 
 			mod.identifierReplacements['default'] = result;
@@ -1236,7 +1218,7 @@ function populateIdentifierReplacements(bundle) {
 		var moduleIdentifiers = mod.identifierReplacements;
 
 		mod.ast._topLevelNames.forEach(function (n) {
-			moduleIdentifiers[n] = utils_hasOwnProp.call(conflicts, n) ? '' + mod.name + '__' + n : n;
+			moduleIdentifiers[n] = hasOwnProp.call(conflicts, n) ? '' + mod.name + '__' + n : n;
 		});
 
 		mod.imports.forEach(function (x) {
@@ -1280,7 +1262,7 @@ function populateIdentifierReplacements(bundle) {
 							replacement = _mod.identifierReplacements['default'];
 						}
 					} else if (!imported.isExternal) {
-						replacement = utils_hasOwnProp.call(conflicts, specifierName) ? '' + moduleName + '__' + specifierName : specifierName;
+						replacement = hasOwnProp.call(conflicts, specifierName) ? '' + moduleName + '__' + specifierName : specifierName;
 					} else {
 						replacement = moduleName + '.' + specifierName;
 					}
@@ -1304,14 +1286,12 @@ function populateIdentifierReplacements(bundle) {
 				continue;
 			}
 
-			if (utils_hasOwnProp.call(otherMod.ast._declared, replacement)) {
+			if (hasOwnProp.call(otherMod.ast._declared, replacement)) {
 				return true;
 			}
 		}
 	}
 }
-
-var combine_resolveExports = resolveExports;
 
 function resolveExports(bundle) {
 	var bundleExports = {};
@@ -1356,7 +1336,7 @@ function resolveExports(bundle) {
  * @param {array} imports - the array of imports
  * @returns {array} [ importedBindings, importedNamespaces ]
  */
-var utils_getReadOnlyIdentifiers = getReadOnlyIdentifiers;
+
 
 function getReadOnlyIdentifiers(imports) {
 	var importedBindings = {},
@@ -1377,7 +1357,6 @@ function getReadOnlyIdentifiers(imports) {
 	return [importedBindings, importedNamespaces];
 }
 
-var ast_disallowIllegalReassignment = disallowIllegalReassignment;
 var bindingMessage = 'Cannot reassign imported binding ',
     namespaceMessage = 'Cannot reassign imported binding of namespace ';
 function disallowIllegalReassignment(node, importedBindings, importedNamespaces, scope) {
@@ -1403,15 +1382,14 @@ function disallowIllegalReassignment(node, importedBindings, importedNamespaces,
 
 	var name = assignee.name;
 
-	if (utils_hasOwnProp.call(isNamespaceAssignment ? importedNamespaces : importedBindings, name) && !scope.contains(name)) {
+	if (hasOwnProp.call(isNamespaceAssignment ? importedNamespaces : importedBindings, name) && !scope.contains(name)) {
 		throw new Error((isNamespaceAssignment ? namespaceMessage : bindingMessage) + '`' + name + '`');
 	}
 }
 
-var ast_replaceIdentifiers = replaceIdentifiers;
 function replaceIdentifiers(body, node, identifierReplacements, scope) {
 	var name = node.name;
-	var replacement = utils_hasOwnProp.call(identifierReplacements, name) && identifierReplacements[name];
+	var replacement = hasOwnProp.call(identifierReplacements, name) && identifierReplacements[name];
 
 	// TODO unchanged identifiers shouldn't have got this far -
 	// remove the `replacement !== name` safeguard once that's the case
@@ -1421,7 +1399,6 @@ function replaceIdentifiers(body, node, identifierReplacements, scope) {
 	}
 }
 
-var ast_rewriteExportAssignments = rewriteExportAssignments;
 function rewriteExportAssignments(body, node, parent, exports, scope, capturedUpdates) {
 	var assignee = undefined;
 
@@ -1443,7 +1420,7 @@ function rewriteExportAssignments(body, node, parent, exports, scope, capturedUp
 		return; // shadows an export
 	}
 
-	if (exports && utils_hasOwnProp.call(exports, name)) {
+	if (exports && hasOwnProp.call(exports, name)) {
 		var exportAs = exports[name];
 
 		if (!!capturedUpdates) {
@@ -1470,15 +1447,13 @@ function rewriteExportAssignments(body, node, parent, exports, scope, capturedUp
 	}
 }
 
-var traverse = traverseAst;
-
 function traverseAst(ast, body, identifierReplacements, importedBindings, importedNamespaces, exportNames) {
 	var scope = ast._scope;
 	var blockScope = ast._blockScope;
 	var capturedUpdates = null;
 	var previousCapturedUpdates = null;
 
-	ast_walk(ast, {
+	walk(ast, {
 		enter: function (node, parent) {
 			// we're only interested in references, not property names etc
 			if (node._skip) return this.skip();
@@ -1501,16 +1476,16 @@ function traverseAst(ast, body, identifierReplacements, importedBindings, import
 				return;
 			}
 
-			ast_disallowIllegalReassignment(node, importedBindings, importedNamespaces, scope);
+			disallowIllegalReassignment(node, importedBindings, importedNamespaces, scope);
 
 			// Rewrite assignments to exports inside functions, to keep bindings live.
 			// This call may mutate `capturedUpdates`, which is used elsewhere
 			if (scope !== ast._scope) {
-				ast_rewriteExportAssignments(body, node, parent, exportNames, scope, capturedUpdates);
+				rewriteExportAssignments(body, node, parent, exportNames, scope, capturedUpdates);
 			}
 
 			if (node.type === 'Identifier' && parent.type !== 'FunctionExpression') {
-				ast_replaceIdentifiers(body, node, identifierReplacements, scope);
+				replaceIdentifiers(body, node, identifierReplacements, scope);
 			}
 
 			// Replace top-level this with undefined ES6 8.1.1.5.4
@@ -1542,18 +1517,18 @@ function exportCapturedUpdate(c) {
 	return ' exports.' + c.exportAs + ' = ' + c.name + ';';
 }
 
-var combine_transformBody = combine_transformBody__transformBody;
-function combine_transformBody__transformBody(bundle, mod, body) {
+var transformBody__default = transformBody__transformBody;
+function transformBody__transformBody(bundle, mod, body) {
 	var identifierReplacements = mod.identifierReplacements;
 
-	var _getReadOnlyIdentifiers = utils_getReadOnlyIdentifiers(mod.imports);
+	var _getReadOnlyIdentifiers = getReadOnlyIdentifiers(mod.imports);
 
 	var importedBindings = _getReadOnlyIdentifiers[0];
 	var importedNamespaces = _getReadOnlyIdentifiers[1];
 
-	var exportNames = utils_hasOwnProp.call(bundle.exports, mod.id) && bundle.exports[mod.id];
+	var exportNames = hasOwnProp.call(bundle.exports, mod.id) && bundle.exports[mod.id];
 
-	traverse(mod.ast, body, identifierReplacements, importedBindings, importedNamespaces, exportNames);
+	traverseAst(mod.ast, body, identifierReplacements, importedBindings, importedNamespaces, exportNames);
 
 	// Remove import statements
 	mod.imports.forEach(function (x) {
@@ -1587,7 +1562,7 @@ function combine_transformBody__transformBody(bundle, mod, body) {
 				if (name === identifierReplacements['default']) {
 					body.remove(x.start, x.end);
 				} else {
-					var original = utils_hasOwnProp.call(identifierReplacements, name) ? identifierReplacements[name] : name;
+					var original = hasOwnProp.call(identifierReplacements, name) ? identifierReplacements[name] : name;
 					body.replace(x.start, x.end, 'var ' + identifierReplacements['default'] + ' = ' + original + ';');
 				}
 			} else {
@@ -1624,7 +1599,8 @@ function combine_transformBody__transformBody(bundle, mod, body) {
 					namespaceExports.push(indentStr + ('get default () { return ' + identifierReplacements['default'] + '; }'));
 				} else {
 					x.specifiers.forEach(function (s) {
-						namespaceExports.push(indentStr + ('get ' + s.name + ' () { return ' + s.name + '; }'));
+						var original = hasOwnProp.call(identifierReplacements, s.name) ? identifierReplacements[s.name] : s.name;
+						namespaceExports.push(indentStr + ('get ' + s.as + ' () { return ' + original + '; }'));
 					});
 				}
 			});
@@ -1656,7 +1632,6 @@ function combine_transformBody__transformBody(bundle, mod, body) {
 	return body.trim();
 }
 
-var bundler_combine = combine;
 function combine(bundle) {
 	bundle.body = new MagicString.Bundle({
 		separator: '\n\n'
@@ -1667,13 +1642,13 @@ function combine(bundle) {
 
 	// determine which specifiers are imported from
 	// external modules
-	combine_populateExternalModuleImports(bundle);
+	populateExternalModuleImports(bundle);
 
 	// determine which identifiers need to be replaced
 	// inside this bundle
-	combine_populateIdentifierReplacements(bundle);
+	populateIdentifierReplacements(bundle);
 
-	bundle.exports = combine_resolveExports(bundle);
+	bundle.exports = resolveExports(bundle);
 
 	bundle.modules.forEach(function (mod) {
 		// verify that this module doesn't import non-exported identifiers
@@ -1693,13 +1668,12 @@ function combine(bundle) {
 
 		bundle.body.addSource({
 			filename: mod.path,
-			content: combine_transformBody(bundle, mod, mod.body),
+			content: transformBody__default(bundle, mod, mod.body),
 			indentExclusionRanges: mod.ast._templateLiteralRanges
 		});
 	});
 }
 
-var bundler_getModule = getModule;
 function getModule(mod) {
 	mod.body = new MagicString(mod.code);
 
@@ -1733,13 +1707,13 @@ function getModule(mod) {
 		return mod.body.remove(start, end);
 	});
 
-	var _findImportsAndExports = ast_findImportsAndExports(mod.ast, mod.code);
+	var _findImportsAndExports = findImportsAndExports(mod.ast, mod.code);
 
 	var imports = _findImportsAndExports.imports;
 	var exports = _findImportsAndExports.exports;
 	var defaultExport = _findImportsAndExports.defaultExport;
 
-	utils_disallowConflictingImports(imports);
+	disallowConflictingImports(imports);
 
 	mod.imports = imports;
 	mod.exports = exports;
@@ -1752,7 +1726,7 @@ function getModule(mod) {
 	// bundle. Tracking assignments to `foo` allows us to be sure that that's
 	// the case (i.e. that the module doesn't assign a different value to foo
 	// after it's been exported)
-	annotate(mod.ast, {
+	annotateAst(mod.ast, {
 		trackAssignments: defaultExportIdentifier
 	});
 
@@ -1796,8 +1770,6 @@ function getModule(mod) {
 	return mod;
 }
 
-var bundler_getBundle = getBundle;
-
 function getBundle(options) {
 	var entry = options.entry.replace(/\.js$/, '');
 	var userModules = options.modules || {};
@@ -1827,7 +1799,7 @@ function getBundle(options) {
 				// if the bundle contains cyclical modules,
 				// we may need to sort it again
 				if (cyclicalModules.length) {
-					modules = utils_sortModules(entryModule);
+					modules = sortModules(entryModule);
 				}
 
 				var bundle = {
@@ -1837,8 +1809,8 @@ function getBundle(options) {
 					names: names
 				};
 
-				utils_resolveChains(modules, moduleLookup);
-				bundler_combine(bundle);
+				resolveChains(modules, moduleLookup);
+				combine(bundle);
 
 				return bundle;
 			});
@@ -1852,8 +1824,8 @@ function getBundle(options) {
 	});
 
 	function fetchModule(moduleId, absolutePath) {
-		if (!utils_hasOwnProp.call(promiseByPath, absolutePath)) {
-			promiseByPath[absolutePath] = (utils_hasOwnProp.call(userModules, absolutePath) ? sander.Promise.resolve(userModules[absolutePath]) : sander.readFile(absolutePath).then(String)).then(function (source) {
+		if (!hasOwnProp.call(promiseByPath, absolutePath)) {
+			promiseByPath[absolutePath] = (hasOwnProp.call(userModules, absolutePath) ? sander.Promise.resolve(userModules[absolutePath]) : sander.readFile(absolutePath).then(String)).then(function (source) {
 				var code = undefined,
 				    ast = undefined;
 
@@ -1874,7 +1846,7 @@ function getBundle(options) {
 					}
 				}
 
-				var module = bundler_getModule({
+				var module = getModule({
 					id: moduleId,
 					path: absolutePath,
 					code: code,
@@ -1883,8 +1855,8 @@ function getBundle(options) {
 
 				moduleLookup[moduleId] = module;
 
-				return utils_promiseSequence(module.imports, function (x) {
-					var id = utils_resolveId(x.path, module.path).replace(base, '');
+				return promiseSequence(module.imports, function (x) {
+					var id = resolveId(x.path, module.path).replace(base, '');
 
 					if (id === moduleId) {
 						throw new Error('A module (' + moduleId + ') cannot import itself');
@@ -1902,7 +1874,7 @@ function getBundle(options) {
 					}
 
 					return resolvePath(base, userModules, id, absolutePath, options.resolvePath).then(function (absolutePath) {
-						var promise = utils_hasOwnProp.call(promiseByPath, absolutePath) && promiseByPath[absolutePath];
+						var promise = hasOwnProp.call(promiseByPath, absolutePath) && promiseByPath[absolutePath];
 						var cyclical = !!promise;
 
 						if (cyclical) {
@@ -1922,7 +1894,7 @@ function getBundle(options) {
 					}, function handleError(err) {
 						if (err.code === 'ENOENT') {
 							// Most likely an external module
-							var externalModule = utils_hasOwnProp.call(externalModuleLookup, id) && externalModuleLookup[id];
+							var externalModule = hasOwnProp.call(externalModuleLookup, id) && externalModuleLookup[id];
 
 							if (!externalModule) {
 								externalModule = {
@@ -1981,7 +1953,7 @@ function resolvePath(base, userModules, moduleId, importerPath, resolver) {
 function tryPath(base, filename, userModules) {
 	var absolutePath = _path.resolve(base, filename);
 
-	if (utils_hasOwnProp.call(userModules, absolutePath)) {
+	if (hasOwnProp.call(userModules, absolutePath)) {
 		return sander.Promise.resolve(absolutePath);
 	}
 	return sander.stat(absolutePath).then(function () {
@@ -1992,8 +1964,6 @@ function tryPath(base, filename, userModules) {
 function isThenable(obj) {
 	return obj && typeof obj.then === 'function';
 }
-
-var utils_transformExportDeclaration = transformExportDeclaration;
 
 function transformExportDeclaration(declaration, body) {
 	if (!declaration) {
@@ -2040,8 +2010,6 @@ function transformExportDeclaration(declaration, body) {
 		body.append('\nreturn ' + exportedValue + ';');
 	}
 }
-
-var utils_packageResult = packageResult;
 
 var ABSOLUTE_PATH = /^(?:[A-Z]:)?[\/\\]/i;
 
@@ -2136,7 +2104,7 @@ function getRelativePath(from, to) {
 
 function markBundleSourcemapLocations(bundle) {
 	bundle.modules.forEach(function (mod) {
-		ast_walk(mod.ast, {
+		walk(mod.ast, {
 			enter: function (node) {
 				mod.body.addSourcemapLocation(node.start);
 			}
@@ -2145,14 +2113,13 @@ function markBundleSourcemapLocations(bundle) {
 }
 
 function markModuleSourcemapLocations(mod) {
-	ast_walk(mod.ast, {
+	walk(mod.ast, {
 		enter: function (node) {
 			mod.body.addSourcemapLocation(node.start);
 		}
 	});
 }
 
-var amd_getImportSummary = getImportSummary;
 function getImportSummary(_ref) {
 	var imports = _ref.imports;
 	var absolutePaths = _ref.absolutePaths;
@@ -2187,23 +2154,20 @@ function getImportSummary(_ref) {
 	});
 
 	var ids = absolutePaths ? paths.map(function (relativePath) {
-		return utils_resolveId(relativePath, name);
+		return resolveId(relativePath, name);
 	}) : paths.slice();
 
 	return { ids: ids, paths: paths, names: names };
 }
 
-var amd_processName = processName;
 function processName(name) {
 	return name ? quote(name) + ', ' : '';
 }
 
-var amd_processIds = processIds;
 function processIds(ids) {
 	return ids.length ? '[' + ids.map(quote).join(', ') + '], ' : '';
 }
 
-var amd_amdIntro = amdIntro;
 function amdIntro(_ref) {
 	var name = _ref.name;
 	var imports = _ref.imports;
@@ -2212,7 +2176,7 @@ function amdIntro(_ref) {
 	var absolutePaths = _ref.absolutePaths;
 	var useStrict = _ref.useStrict;
 
-	var _getImportSummary = amd_getImportSummary({ name: name, imports: imports, absolutePaths: absolutePaths });
+	var _getImportSummary = getImportSummary({ name: name, imports: imports, absolutePaths: absolutePaths });
 
 	var ids = _getImportSummary.ids;
 	var names = _getImportSummary.names;
@@ -2222,7 +2186,7 @@ function amdIntro(_ref) {
 		names.unshift('exports');
 	}
 
-	var intro = '\ndefine(' + amd_processName(name) + '' + amd_processIds(ids) + 'function (' + names.join(', ') + ') {\n\n';
+	var intro = '\ndefine(' + processName(name) + '' + processIds(ids) + 'function (' + names.join(', ') + ') {\n\n';
 
 	if (useStrict) {
 		intro += '' + indentStr + '\'use strict\';\n\n';
@@ -2231,15 +2195,15 @@ function amdIntro(_ref) {
 	return intro;
 }
 
-var defaultsMode_amd = defaultsMode_amd__amd;
-function defaultsMode_amd__amd(mod, options) {
+var amd__default = amd__amd;
+function amd__amd(mod, options) {
 	mod.imports.forEach(function (x) {
 		mod.body.remove(x.start, x.next);
 	});
 
-	utils_transformExportDeclaration(mod.exports[0], mod.body);
+	transformExportDeclaration(mod.exports[0], mod.body);
 
-	var intro = amd_amdIntro({
+	var intro = amdIntro({
 		name: options.amdName,
 		imports: mod.imports,
 		absolutePaths: options.absolutePaths,
@@ -2249,15 +2213,15 @@ function defaultsMode_amd__amd(mod, options) {
 
 	mod.body.trim().indent().prepend(intro).trim().append('\n\n});');
 
-	return utils_packageResult(mod, mod.body, options, 'toAmd');
+	return packageResult(mod, mod.body, options, 'toAmd');
 }
 
-var defaultsMode_cjs = defaultsMode_cjs__cjs;
-function defaultsMode_cjs__cjs(mod, options) {
+var cjs__default = cjs__cjs;
+function cjs__cjs(mod, options) {
 	var seen = {};
 
 	mod.imports.forEach(function (x) {
-		if (!utils_hasOwnProp.call(seen, x.path)) {
+		if (!hasOwnProp.call(seen, x.path)) {
 			var replacement = x.isEmpty ? '' + req(x.path) + ';' : 'var ' + x.as + ' = ' + req(x.path) + ';';
 			mod.body.replace(x.start, x.end, replacement);
 
@@ -2287,10 +2251,9 @@ function defaultsMode_cjs__cjs(mod, options) {
 		mod.body.prepend('\'use strict\';\n\n').trimLines();
 	}
 
-	return utils_packageResult(mod, mod.body, options, 'toCjs');
+	return packageResult(mod, mod.body, options, 'toCjs');
 }
 
-var umd_umdIntro = umdIntro;
 function umdIntro(_ref) {
 	var amdName = _ref.amdName;
 	var name = _ref.name;
@@ -2306,9 +2269,9 @@ function umdIntro(_ref) {
 	var intro = undefined;
 
 	if (!hasExports && !imports.length) {
-		intro = '(function (factory) {\n\t\t\t\t!(typeof exports === \'object\' && typeof module !== \'undefined\') &&\n\t\t\t\ttypeof define === \'function\' && define.amd ? define(' + amd_processName(amdName) + 'factory) :\n\t\t\t\tfactory()\n\t\t\t}(function () {' + useStrictPragma + '\n\n\t\t\t';
+		intro = '(function (factory) {\n\t\t\t\t!(typeof exports === \'object\' && typeof module !== \'undefined\') &&\n\t\t\t\ttypeof define === \'function\' && define.amd ? define(' + processName(amdName) + 'factory) :\n\t\t\t\tfactory()\n\t\t\t}(function () {' + useStrictPragma + '\n\n\t\t\t';
 	} else {
-		var _getImportSummary = amd_getImportSummary({ imports: imports, name: amdName, absolutePaths: absolutePaths });
+		var _getImportSummary = getImportSummary({ imports: imports, name: amdName, absolutePaths: absolutePaths });
 
 		var ids = _getImportSummary.ids;
 		var paths = _getImportSummary.paths;
@@ -2329,7 +2292,7 @@ function umdIntro(_ref) {
 				names.unshift('exports');
 			}
 
-			amdExport = 'define(' + amd_processName(amdName) + '' + amd_processIds(ids) + 'factory)';
+			amdExport = 'define(' + processName(amdName) + '' + processIds(ids) + 'factory)';
 			defaultsBlock = '';
 			if (externalDefaults && externalDefaults.length > 0) {
 				defaultsBlock = externalDefaults.map(function (x) {
@@ -2337,7 +2300,7 @@ function umdIntro(_ref) {
 				}).join('\n') + '\n\n';
 			}
 		} else {
-			amdExport = 'define(' + amd_processName(amdName) + '' + amd_processIds(ids) + 'factory)';
+			amdExport = 'define(' + processName(amdName) + '' + processIds(ids) + 'factory)';
 			cjsExport = (hasExports ? 'module.exports = ' : '') + ('factory(' + paths.map(req).join(', ') + ')');
 			globalExport = (hasExports ? 'global.' + name + ' = ' : '') + ('factory(' + names.map(globalify).join(', ') + ')');
 
@@ -2367,26 +2330,23 @@ EsperantoError.prototype = new Error();
 EsperantoError.prototype.constructor = EsperantoError;
 EsperantoError.prototype.name = 'EsperantoError';
 
-var utils_EsperantoError = EsperantoError;
-
-var umd_requireName = requireName;
 function requireName(options) {
 	if (!options.name) {
-		throw new utils_EsperantoError('You must supply a `name` option for UMD modules', {
+		throw new EsperantoError('You must supply a `name` option for UMD modules', {
 			code: 'MISSING_NAME'
 		});
 	}
 }
 
-var defaultsMode_umd = defaultsMode_umd__umd;
-function defaultsMode_umd__umd(mod, options) {
-	umd_requireName(options);
+var umd__default = umd__umd;
+function umd__umd(mod, options) {
+	requireName(options);
 
 	mod.imports.forEach(function (x) {
 		mod.body.remove(x.start, x.next);
 	});
 
-	var intro = umd_umdIntro({
+	var intro = umdIntro({
 		hasExports: mod.exports.length > 0,
 		imports: mod.imports,
 		amdName: options.amdName,
@@ -2396,20 +2356,18 @@ function defaultsMode_umd__umd(mod, options) {
 		useStrict: options.useStrict !== false
 	});
 
-	utils_transformExportDeclaration(mod.exports[0], mod.body);
+	transformExportDeclaration(mod.exports[0], mod.body);
 
 	mod.body.indent().prepend(intro).trimLines().append('\n\n}));');
 
-	return utils_packageResult(mod, mod.body, options, 'toUmd');
+	return packageResult(mod, mod.body, options, 'toUmd');
 }
 
 var defaultsMode = {
-	amd: defaultsMode_amd,
-	cjs: defaultsMode_cjs,
-	umd: defaultsMode_umd
+	amd: amd__default,
+	cjs: cjs__default,
+	umd: umd__default
 };
-
-var utils_gatherImports = gatherImports;
 
 function gatherImports(imports) {
 	var chains = {};
@@ -2435,8 +2393,6 @@ function gatherImports(imports) {
 	return [chains, identifierReplacements];
 }
 
-var utils_getExportNames = getExportNames;
-
 function getExportNames(exports) {
 	var result = {};
 
@@ -2459,14 +2415,14 @@ function getExportNames(exports) {
 var utils_transformBody = utils_transformBody__transformBody;
 
 function utils_transformBody__transformBody(mod, body, options) {
-	var _gatherImports = utils_gatherImports(mod.imports);
+	var _gatherImports = gatherImports(mod.imports);
 
 	var chains = _gatherImports[0];
 	var identifierReplacements = _gatherImports[1];
 
-	var exportNames = utils_getExportNames(mod.exports);
+	var exportNames = getExportNames(mod.exports);
 
-	var _getReadOnlyIdentifiers = utils_getReadOnlyIdentifiers(mod.imports);
+	var _getReadOnlyIdentifiers = getReadOnlyIdentifiers(mod.imports);
 
 	var importedBindings = _getReadOnlyIdentifiers[0];
 	var importedNamespaces = _getReadOnlyIdentifiers[1];
@@ -2474,7 +2430,7 @@ function utils_transformBody__transformBody(mod, body, options) {
 	// ensure no conflict with `exports`
 	identifierReplacements.exports = deconflict('exports', mod.ast._declared);
 
-	traverse(mod.ast, body, identifierReplacements, importedBindings, importedNamespaces, exportNames);
+	traverseAst(mod.ast, body, identifierReplacements, importedBindings, importedNamespaces, exportNames);
 
 	// Remove import statements from the body of the module
 	mod.imports.forEach(function (x) {
@@ -2556,7 +2512,7 @@ function utils_transformBody__transformBody(mod, body, options) {
 }
 
 function deconflict(name, declared) {
-	while (utils_hasOwnProp.call(declared, name)) {
+	while (hasOwnProp.call(declared, name)) {
 		name = '_' + name;
 	}
 
@@ -2565,7 +2521,7 @@ function deconflict(name, declared) {
 
 var strictMode_amd = strictMode_amd__amd;
 function strictMode_amd__amd(mod, options) {
-	var intro = amd_amdIntro({
+	var intro = amdIntro({
 		name: options.amdName,
 		absolutePaths: options.absolutePaths,
 		imports: mod.imports,
@@ -2580,7 +2536,7 @@ function strictMode_amd__amd(mod, options) {
 		_evilES3SafeReExports: options._evilES3SafeReExports
 	});
 
-	return utils_packageResult(mod, mod.body, options, 'toAmd');
+	return packageResult(mod, mod.body, options, 'toAmd');
 }
 
 var strictMode_cjs = strictMode_cjs__cjs;
@@ -2589,7 +2545,7 @@ function strictMode_cjs__cjs(mod, options) {
 
 	// Create block of require statements
 	var importBlock = mod.imports.map(function (x) {
-		if (!utils_hasOwnProp.call(seen, x.path)) {
+		if (!hasOwnProp.call(seen, x.path)) {
 			seen[x.path] = true;
 
 			if (x.isEmpty) {
@@ -2609,14 +2565,14 @@ function strictMode_cjs__cjs(mod, options) {
 		mod.body.prepend('\'use strict\';\n\n').trimLines();
 	}
 
-	return utils_packageResult(mod, mod.body, options, 'toCjs');
+	return packageResult(mod, mod.body, options, 'toCjs');
 }
 
 var strictMode_umd = strictMode_umd__umd;
 function strictMode_umd__umd(mod, options) {
-	umd_requireName(options);
+	requireName(options);
 
-	var intro = umd_umdIntro({
+	var intro = umdIntro({
 		hasExports: mod.exports.length > 0,
 		imports: mod.imports,
 		amdName: options.amdName,
@@ -2633,7 +2589,7 @@ function strictMode_umd__umd(mod, options) {
 		_evilES3SafeReExports: options._evilES3SafeReExports
 	});
 
-	return utils_packageResult(mod, mod.body, options, 'toUmd');
+	return packageResult(mod, mod.body, options, 'toUmd');
 }
 
 var strictMode = {
@@ -2648,14 +2604,14 @@ var moduleBuilders = {
 	strictMode: strictMode
 };
 
-var builders_defaultsMode_amd = builders_defaultsMode_amd__amd;
-function builders_defaultsMode_amd__amd(bundle, options) {
+var defaultsMode_amd = defaultsMode_amd__amd;
+function defaultsMode_amd__amd(bundle, options) {
 	var defaultName = bundle.entryModule.identifierReplacements['default'];
 	if (defaultName) {
 		bundle.body.append('\n\nreturn ' + defaultName + ';');
 	}
 
-	var intro = amd_amdIntro({
+	var intro = amdIntro({
 		name: options.amdName,
 		imports: bundle.externalModules,
 		indentStr: bundle.body.getIndentString(),
@@ -2663,11 +2619,11 @@ function builders_defaultsMode_amd__amd(bundle, options) {
 	});
 
 	bundle.body.indent().prepend(intro).trimLines().append('\n\n});');
-	return utils_packageResult(bundle, bundle.body, options, 'toAmd', true);
+	return packageResult(bundle, bundle.body, options, 'toAmd', true);
 }
 
-var builders_defaultsMode_cjs = builders_defaultsMode_cjs__cjs;
-function builders_defaultsMode_cjs__cjs(bundle, options) {
+var defaultsMode_cjs = defaultsMode_cjs__cjs;
+function defaultsMode_cjs__cjs(bundle, options) {
 	var importBlock = bundle.externalModules.map(function (x) {
 		return 'var ' + x.name + ' = ' + req(x.id) + ';';
 	}).join('\n');
@@ -2685,16 +2641,16 @@ function builders_defaultsMode_cjs__cjs(bundle, options) {
 		bundle.body.prepend('\'use strict\';\n\n').trimLines();
 	}
 
-	return utils_packageResult(bundle, bundle.body, options, 'toCjs', true);
+	return packageResult(bundle, bundle.body, options, 'toCjs', true);
 }
 
-var builders_defaultsMode_umd = builders_defaultsMode_umd__umd;
-function builders_defaultsMode_umd__umd(bundle, options) {
-	umd_requireName(options);
+var defaultsMode_umd = defaultsMode_umd__umd;
+function defaultsMode_umd__umd(bundle, options) {
+	requireName(options);
 
 	var entry = bundle.entryModule;
 
-	var intro = umd_umdIntro({
+	var intro = umdIntro({
 		hasExports: entry.exports.length > 0,
 		imports: bundle.externalModules,
 		amdName: options.amdName,
@@ -2709,16 +2665,14 @@ function builders_defaultsMode_umd__umd(bundle, options) {
 
 	bundle.body.indent().prepend(intro).trimLines().append('\n\n}));');
 
-	return utils_packageResult(bundle, bundle.body, options, 'toUmd', true);
+	return packageResult(bundle, bundle.body, options, 'toUmd', true);
 }
 
 var builders_defaultsMode = {
-	amd: builders_defaultsMode_amd,
-	cjs: builders_defaultsMode_cjs,
-	umd: builders_defaultsMode_umd
+	amd: defaultsMode_amd,
+	cjs: defaultsMode_cjs,
+	umd: defaultsMode_umd
 };
-
-var utils_getExportBlock = getExportBlock;
 
 function getExportBlock(entry) {
 	var name = entry.identifierReplacements["default"];
@@ -2746,10 +2700,10 @@ function builders_strictMode_amd__amd(bundle, options) {
 	}
 
 	if (entry.defaultExport) {
-		bundle.body.append('\n\n' + utils_getExportBlock(entry));
+		bundle.body.append('\n\n' + getExportBlock(entry));
 	}
 
-	var intro = amd_amdIntro({
+	var intro = amdIntro({
 		name: options.amdName,
 		imports: bundle.externalModules,
 		hasExports: entry.exports.length,
@@ -2758,7 +2712,7 @@ function builders_strictMode_amd__amd(bundle, options) {
 	});
 
 	bundle.body.indent().prepend(intro).trimLines().append('\n\n});');
-	return utils_packageResult(bundle, bundle.body, options, 'toAmd', true);
+	return packageResult(bundle, bundle.body, options, 'toAmd', true);
 }
 
 function builders_strictMode_amd__needsDefault(externalModule) {
@@ -2784,24 +2738,24 @@ function builders_strictMode_cjs__cjs(bundle, options) {
 	}
 
 	if (entry.defaultExport) {
-		bundle.body.append('\n\n' + utils_getExportBlock(entry));
+		bundle.body.append('\n\n' + getExportBlock(entry));
 	}
 
 	if (options.useStrict !== false) {
 		bundle.body.prepend('\'use strict\';\n\n').trimLines();
 	}
 
-	return utils_packageResult(bundle, bundle.body, options, 'toCjs', true);
+	return packageResult(bundle, bundle.body, options, 'toCjs', true);
 }
 
 var builders_strictMode_umd = builders_strictMode_umd__umd;
 
 function builders_strictMode_umd__umd(bundle, options) {
-	umd_requireName(options);
+	requireName(options);
 
 	var entry = bundle.entryModule;
 
-	var intro = umd_umdIntro({
+	var intro = umdIntro({
 		hasExports: entry.exports.length > 0,
 		imports: bundle.externalModules,
 		externalDefaults: bundle.externalModules.filter(builders_strictMode_umd__needsDefault),
@@ -2813,12 +2767,12 @@ function builders_strictMode_umd__umd(bundle, options) {
 	});
 
 	if (entry.defaultExport) {
-		bundle.body.append('\n\n' + utils_getExportBlock(entry));
+		bundle.body.append('\n\n' + getExportBlock(entry));
 	}
 
 	bundle.body.indent().prepend(intro).trimLines().append('\n\n}));');
 
-	return utils_packageResult(bundle, bundle.body, options, 'toUmd', true);
+	return packageResult(bundle, bundle.body, options, 'toUmd', true);
 }
 
 function builders_strictMode_umd__needsDefault(externalModule) {
@@ -2837,7 +2791,6 @@ var bundleBuilders = {
 	strictMode: builders_strictMode
 };
 
-var builders_concat = concat;
 function concat(bundle, options) {
 	// This bundle must be self-contained - no imports or exports
 	if (bundle.externalModules.length || bundle.entryModule.exports.length) {
@@ -2859,7 +2812,7 @@ function concat(bundle, options) {
 
 	bundle.body.trimLines().indent(indent).prepend(intro).append(outro);
 
-	return utils_packageResult(bundle, bundle.body, options, 'toString', true);
+	return packageResult(bundle, bundle.body, options, 'toString', true);
 }
 
 var deprecateMessage = 'options.defaultOnly has been deprecated, and is now standard behaviour. To use named imports/exports, pass `strict: true`.';
@@ -2869,7 +2822,7 @@ function transpileMethod(format) {
 	return function (source) {
 		var options = arguments[1] === undefined ? {} : arguments[1];
 
-		var mod = standalone_getModule({
+		var mod = getStandaloneModule({
 			source: source,
 			getModuleName: options.getModuleName,
 			strict: options.strict
@@ -2889,7 +2842,7 @@ function transpileMethod(format) {
 
 		if (!options.strict) {
 			// ensure there are no named imports/exports. TODO link to a wiki page...
-			if (utils_hasNamedImports(mod) || utils_hasNamedExports(mod)) {
+			if (hasNamedImports(mod) || hasNamedExports(mod)) {
 				throw new Error('You must be in strict mode (pass `strict: true`) to use named imports or exports');
 			}
 
@@ -2905,7 +2858,7 @@ function transpileMethod(format) {
 var toAmd = transpileMethod('amd');
 var toCjs = transpileMethod('cjs');
 var toUmd = transpileMethod('umd');function bundle(options) {
-	return bundler_getBundle(options).then(function (bundle) {
+	return getBundle(options).then(function (bundle) {
 		return {
 			imports: bundle.externalModules.map(function (mod) {
 				return mod.id;
@@ -2923,7 +2876,7 @@ var toUmd = transpileMethod('umd');function bundle(options) {
 			},
 
 			concat: function (options) {
-				return builders_concat(bundle, options || {});
+				return concat(bundle, options || {});
 			}
 		};
 
@@ -2940,7 +2893,7 @@ var toUmd = transpileMethod('umd');function bundle(options) {
 
 			if (!options.strict) {
 				// ensure there are no named imports/exports
-				if (utils_hasNamedExports(bundle.entryModule)) {
+				if (hasNamedExports(bundle.entryModule)) {
 					throw new Error('Entry module can only have named exports in strict mode (pass `strict: true`)');
 				}
 
@@ -2982,4 +2935,4 @@ exports.bundle = bundle;
 exports.toAmd = toAmd;
 exports.toCjs = toCjs;
 exports.toUmd = toUmd;
-//# sourceMappingURL=/Users/tricknotes/src/github.com/esperantojs/esperanto/.gobble-build/02-esperantoBundle/1/esperanto.js.map
+//# sourceMappingURL=/www/ESPERANTO/esperanto/.gobble-build/02-esperantoBundle/1/esperanto.js.map
