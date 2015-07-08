@@ -1,5 +1,5 @@
 /*
-	esperanto.js v0.7.2 - 2015-05-29
+	esperanto.js v0.7.3 - 2015-07-08
 	http://esperantojs.org
 
 	Released under the MIT License.
@@ -1119,9 +1119,6 @@
 						break;
 
 					case 'MemberExpression':
-						if (envDepth === 0 && node.object.type === 'ThisExpression') {
-							throw new Error('`this` at the top level is undefined');
-						}
 						!node.computed && (node.property._skip = true);
 						break;
 
@@ -1209,8 +1206,6 @@
 	 * @param {string} source - the module's original source code
 	 * @returns {object} - { imports, exports, defaultExport }
 	 */
-
-
 	function findImportsAndExports(ast, source) {
 		var imports = [];
 		var exports = [];
@@ -1498,16 +1493,15 @@
 		}
 	}
 
+	var RESERVED = 'break case class catch const continue debugger default delete do else export extends finally for function if import in instanceof let new return super switch this throw try typeof var void while with yield'.split(' ');
+	var INVALID_CHAR = /[^a-zA-Z0-9_$]/g;
+	var INVALID_LEADING_CHAR = /[^a-zA-Z_$]/;
+
 	/**
 	 * Generates a sanitized (i.e. valid identifier) name from a module ID
 	 * @param {string} id - a module ID, or part thereof
 	 * @returns {string}
 	 */
-
-
-	var RESERVED = 'break case class catch const continue debugger default delete do else export extends finally for function if import in instanceof let new return super switch this throw try typeof var void while with yield'.split(' ');
-	var INVALID_CHAR = /[^a-zA-Z0-9_$]/g;
-	var INVALID_LEADING_CHAR = /[^a-zA-Z_$]/;
 	function sanitize(name) {
 		name = name.replace(INVALID_CHAR, '_');
 
@@ -1808,14 +1802,6 @@
 		});
 	}
 
-	/**
-	 * Resolves an importPath relative to the module that is importing it
-	 * @param {string} importPath - the (possibly relative) path of an imported module
-	 * @param {string} importerPath - the (relative to `base`) path of the importing module
-	 * @returns {string}
-	 */
-
-
 	function resolveId(importPath, importerPath) {
 		var resolved, importerParts, importParts;
 
@@ -1917,10 +1903,10 @@
 			names.unshift('exports');
 		}
 
-		var intro = '\ndefine(' + processName(name) + '' + processIds(ids) + 'function (' + names.join(', ') + ') {\n\n';
+		var intro = '\ndefine(' + processName(name) + processIds(ids) + 'function (' + names.join(', ') + ') {\n\n';
 
 		if (useStrict) {
-			intro += '' + indentStr + '\'use strict\';\n\n';
+			intro += indentStr + '\'use strict\';\n\n';
 		}
 
 		return intro;
@@ -1953,7 +1939,7 @@
 
 		mod.imports.forEach(function (x) {
 			if (!hasOwnProp.call(seen, x.path)) {
-				var replacement = x.isEmpty ? '' + req(x.path) + ';' : 'var ' + x.as + ' = ' + req(x.path) + ';';
+				var replacement = x.isEmpty ? req(x.path) + ';' : 'var ' + x.as + ' = ' + req(x.path) + ';';
 				mod.body.replace(x.start, x.end, replacement);
 
 				seen[x.path] = true;
@@ -2023,7 +2009,7 @@
 					names.unshift('exports');
 				}
 
-				amdExport = 'define(' + processName(amdName) + '' + processIds(ids) + 'factory)';
+				amdExport = 'define(' + processName(amdName) + processIds(ids) + 'factory)';
 				defaultsBlock = '';
 				if (externalDefaults && externalDefaults.length > 0) {
 					defaultsBlock = externalDefaults.map(function (x) {
@@ -2031,7 +2017,7 @@
 					}).join('\n') + '\n\n';
 				}
 			} else {
-				amdExport = 'define(' + processName(amdName) + '' + processIds(ids) + 'factory)';
+				amdExport = 'define(' + processName(amdName) + processIds(ids) + 'factory)';
 				cjsExport = (hasExports ? 'module.exports = ' : '') + ('factory(' + paths.map(req).join(', ') + ')');
 				globalExport = (hasExports ? 'global.' + name + ' = ' : '') + ('factory(' + names.map(globalify).join(', ') + ')');
 
@@ -2151,8 +2137,6 @@
 	 * @param {array} imports - the array of imports
 	 * @returns {array} [ importedBindings, importedNamespaces ]
 	 */
-
-
 	function getReadOnlyIdentifiers(imports) {
 		var importedBindings = {},
 		    importedNamespaces = {};
@@ -2467,7 +2451,7 @@
 				seen[x.path] = true;
 
 				if (x.isEmpty) {
-					return '' + req(x.path) + ';';
+					return req(x.path) + ';';
 				}
 
 				return 'var ' + x.name + ' = ' + req(x.path) + ';';
@@ -2607,7 +2591,7 @@
 			var defaultsBlock = externalDefaults.map(function (x) {
 				// Case 1: default is used, and named is not
 				if (!x.needsNamed) {
-					return '' + x.name + ' = (\'default\' in ' + x.name + ' ? ' + x.name + '[\'default\'] : ' + x.name + ');';
+					return x.name + ' = (\'default\' in ' + x.name + ' ? ' + x.name + '[\'default\'] : ' + x.name + ');';
 				}
 
 				// Case 2: both default and named are used
@@ -2857,4 +2841,4 @@
 	exports.toUmd = toUmd;
 
 }));
-//# sourceMappingURL=/www/ESPERANTO/esperanto/.gobble-build/03-esperantoBundle/1/esperanto.browser.js.map
+//# sourceMappingURL=/Users/tricknotes/src/github.com/esperantojs/esperanto/.gobble-build/03-esperantoBundle/1/esperanto.browser.js.map

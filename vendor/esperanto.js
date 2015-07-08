@@ -1,5 +1,5 @@
 /*
-	esperanto.js v0.7.2 - 2015-05-29
+	esperanto.js v0.7.3 - 2015-07-08
 	http://esperantojs.org
 
 	Released under the MIT License.
@@ -226,9 +226,6 @@ function annotateAst(ast, options) {
 					break;
 
 				case 'MemberExpression':
-					if (envDepth === 0 && node.object.type === 'ThisExpression') {
-						throw new Error('`this` at the top level is undefined');
-					}
 					!node.computed && (node.property._skip = true);
 					break;
 
@@ -316,8 +313,6 @@ function annotateAst(ast, options) {
  * @param {string} source - the module's original source code
  * @returns {object} - { imports, exports, defaultExport }
  */
-
-
 function findImportsAndExports(ast, source) {
 	var imports = [];
 	var exports = [];
@@ -605,16 +600,15 @@ function disallowConflictingImports(imports) {
 	}
 }
 
+var RESERVED = 'break case class catch const continue debugger default delete do else export extends finally for function if import in instanceof let new return super switch this throw try typeof var void while with yield'.split(' ');
+var INVALID_CHAR = /[^a-zA-Z0-9_$]/g;
+var INVALID_LEADING_CHAR = /[^a-zA-Z_$]/;
+
 /**
  * Generates a sanitized (i.e. valid identifier) name from a module ID
  * @param {string} id - a module ID, or part thereof
  * @returns {string}
  */
-
-
-var RESERVED = 'break case class catch const continue debugger default delete do else export extends finally for function if import in instanceof let new return super switch this throw try typeof var void while with yield'.split(' ');
-var INVALID_CHAR = /[^a-zA-Z0-9_$]/g;
-var INVALID_LEADING_CHAR = /[^a-zA-Z_$]/;
 function sanitize(name) {
 	name = name.replace(INVALID_CHAR, '_');
 
@@ -760,14 +754,6 @@ function determineImportNames(imports, userFn, usedNames) {
 	});
 }
 
-/**
- * Resolves an importPath relative to the module that is importing it
- * @param {string} importPath - the (possibly relative) path of an imported module
- * @param {string} importerPath - the (relative to `base`) path of the importing module
- * @returns {string}
- */
-
-
 function resolveId(importPath, importerPath) {
 	var resolved, importerParts, importParts;
 
@@ -827,14 +813,6 @@ function promiseSequence(arr, callback) {
 		return results;
 	});
 }
-
-/**
- * Sorts an array of modules such that dependencies come before
-   their dependents, handling complex cases of cyclical dependencies
- * @param {object} entry - the bundle's 'entry module'
- * @returns {array} - the sorted module list
- */
-
 
 function sortModules(entry) {
 	var seen = {};
@@ -951,16 +929,6 @@ function referencesAtTopLevel(a, b) {
 	return referencedAtTopLevel;
 }
 
-/**
- * Discovers 'chains' within a bundle - e.g. `import { foo } from 'foo'`
-   may be equivalent to `import { bar } from 'bar'`, if foo.js imports `bar`
-   and re-exports it as `foo`. Where applicable, import/export specifiers
-   are augmented with an `origin: { module, name }` property
- * @param {array} modules - the bundle's array of modules
- * @param {object} moduleLookup - modules indexed by their ID
- */
-
-
 function resolveChains(modules, moduleLookup) {
 	var chains = {};
 
@@ -978,7 +946,7 @@ function resolveChains(modules, moduleLookup) {
 					return; // TODO can batch imports be chained?
 				}
 
-				origin[s.as] = '' + s.name + '@' + imported.id;
+				origin[s.as] = s.name + '@' + imported.id;
 			});
 		});
 
@@ -987,9 +955,9 @@ function resolveChains(modules, moduleLookup) {
 
 			x.specifiers.forEach(function (s) {
 				if (hasOwnProp.call(origin, s.name)) {
-					chains['' + s.as + '@' + mod.id] = origin[s.name];
+					chains[s.as + '@' + mod.id] = origin[s.name];
 				} else if (s.as !== s.name) {
-					chains['' + s.as + '@' + mod.id] = '' + s.name + '@' + mod.id;
+					chains[s.as + '@' + mod.id] = s.name + '@' + mod.id;
 				}
 			});
 		});
@@ -1005,7 +973,7 @@ function resolveChains(modules, moduleLookup) {
 					return; // TODO can batch imports be chained?
 				}
 
-				setOrigin(s, '' + s.name + '@' + imported.id, chains, moduleLookup);
+				setOrigin(s, s.name + '@' + imported.id, chains, moduleLookup);
 			});
 		});
 
@@ -1013,7 +981,7 @@ function resolveChains(modules, moduleLookup) {
 			if (!x.specifiers) return;
 
 			x.specifiers.forEach(function (s) {
-				setOrigin(s, '' + s.as + '@' + mod.id, chains, moduleLookup);
+				setOrigin(s, s.as + '@' + mod.id, chains, moduleLookup);
 			});
 		});
 	});
@@ -1185,13 +1153,6 @@ function topLevelScopeConflicts(bundle) {
 	return conflicts;
 }
 
-/**
- * Figures out which identifiers need to be rewritten within
-   a bundle to avoid conflicts
- * @param {object} bundle - the bundle
- * @returns {object}
- */
-
 function populateIdentifierReplacements(bundle) {
 	// first, discover conflicts
 	var conflicts = topLevelScopeConflicts(bundle);
@@ -1205,9 +1166,9 @@ function populateIdentifierReplacements(bundle) {
 			var result = undefined;
 
 			if (x.hasDeclaration && x.name) {
-				result = hasOwnProp.call(conflicts, x.name) || otherModulesDeclare(mod, x.name) ? '' + mod.name + '__' + x.name : x.name;
+				result = hasOwnProp.call(conflicts, x.name) || otherModulesDeclare(mod, x.name) ? mod.name + '__' + x.name : x.name;
 			} else {
-				result = hasOwnProp.call(conflicts, mod.name) || x.value !== mod.name && ~mod.ast._topLevelNames.indexOf(mod.name) || otherModulesDeclare(mod, mod.name) ? '' + mod.name + '__default' : mod.name;
+				result = hasOwnProp.call(conflicts, mod.name) || x.value !== mod.name && ~mod.ast._topLevelNames.indexOf(mod.name) || otherModulesDeclare(mod, mod.name) ? mod.name + '__default' : mod.name;
 			}
 
 			mod.identifierReplacements['default'] = result;
@@ -1220,7 +1181,7 @@ function populateIdentifierReplacements(bundle) {
 		var moduleIdentifiers = mod.identifierReplacements;
 
 		mod.ast._topLevelNames.forEach(function (n) {
-			moduleIdentifiers[n] = hasOwnProp.call(conflicts, n) ? '' + mod.name + '__' + n : n;
+			moduleIdentifiers[n] = hasOwnProp.call(conflicts, n) ? mod.name + '__' + n : n;
 		});
 
 		mod.imports.forEach(function (x) {
@@ -1254,7 +1215,7 @@ function populateIdentifierReplacements(bundle) {
 						// if it's an external module, always use __default if the
 						// bundle also uses named imports
 						if (imported.isExternal) {
-							replacement = imported.needsNamed ? '' + moduleName + '__default' : moduleName;
+							replacement = imported.needsNamed ? moduleName + '__default' : moduleName;
 						}
 
 						// TODO We currently need to check for the existence of `mod`, because modules
@@ -1264,7 +1225,7 @@ function populateIdentifierReplacements(bundle) {
 							replacement = _mod.identifierReplacements['default'];
 						}
 					} else if (!imported.isExternal) {
-						replacement = hasOwnProp.call(conflicts, specifierName) ? '' + moduleName + '__' + specifierName : specifierName;
+						replacement = hasOwnProp.call(conflicts, specifierName) ? moduleName + '__' + specifierName : specifierName;
 					} else {
 						replacement = moduleName + '.' + specifierName;
 					}
@@ -1338,8 +1299,6 @@ function resolveExports(bundle) {
  * @param {array} imports - the array of imports
  * @returns {array} [ importedBindings, importedNamespaces ]
  */
-
-
 function getReadOnlyIdentifiers(imports) {
 	var importedBindings = {},
 	    importedNamespaces = {};
@@ -2188,10 +2147,10 @@ function amdIntro(_ref) {
 		names.unshift('exports');
 	}
 
-	var intro = '\ndefine(' + processName(name) + '' + processIds(ids) + 'function (' + names.join(', ') + ') {\n\n';
+	var intro = '\ndefine(' + processName(name) + processIds(ids) + 'function (' + names.join(', ') + ') {\n\n';
 
 	if (useStrict) {
-		intro += '' + indentStr + '\'use strict\';\n\n';
+		intro += indentStr + '\'use strict\';\n\n';
 	}
 
 	return intro;
@@ -2224,7 +2183,7 @@ function cjs__cjs(mod, options) {
 
 	mod.imports.forEach(function (x) {
 		if (!hasOwnProp.call(seen, x.path)) {
-			var replacement = x.isEmpty ? '' + req(x.path) + ';' : 'var ' + x.as + ' = ' + req(x.path) + ';';
+			var replacement = x.isEmpty ? req(x.path) + ';' : 'var ' + x.as + ' = ' + req(x.path) + ';';
 			mod.body.replace(x.start, x.end, replacement);
 
 			seen[x.path] = true;
@@ -2294,7 +2253,7 @@ function umdIntro(_ref) {
 				names.unshift('exports');
 			}
 
-			amdExport = 'define(' + processName(amdName) + '' + processIds(ids) + 'factory)';
+			amdExport = 'define(' + processName(amdName) + processIds(ids) + 'factory)';
 			defaultsBlock = '';
 			if (externalDefaults && externalDefaults.length > 0) {
 				defaultsBlock = externalDefaults.map(function (x) {
@@ -2302,7 +2261,7 @@ function umdIntro(_ref) {
 				}).join('\n') + '\n\n';
 			}
 		} else {
-			amdExport = 'define(' + processName(amdName) + '' + processIds(ids) + 'factory)';
+			amdExport = 'define(' + processName(amdName) + processIds(ids) + 'factory)';
 			cjsExport = (hasExports ? 'module.exports = ' : '') + ('factory(' + paths.map(req).join(', ') + ')');
 			globalExport = (hasExports ? 'global.' + name + ' = ' : '') + ('factory(' + names.map(globalify).join(', ') + ')');
 
@@ -2551,7 +2510,7 @@ function strictMode_cjs__cjs(mod, options) {
 			seen[x.path] = true;
 
 			if (x.isEmpty) {
-				return '' + req(x.path) + ';';
+				return req(x.path) + ';';
 			}
 
 			return 'var ' + x.name + ' = ' + req(x.path) + ';';
@@ -2691,7 +2650,7 @@ function builders_strictMode_amd__amd(bundle, options) {
 		var defaultsBlock = externalDefaults.map(function (x) {
 			// Case 1: default is used, and named is not
 			if (!x.needsNamed) {
-				return '' + x.name + ' = (\'default\' in ' + x.name + ' ? ' + x.name + '[\'default\'] : ' + x.name + ');';
+				return x.name + ' = (\'default\' in ' + x.name + ' ? ' + x.name + '[\'default\'] : ' + x.name + ');';
 			}
 
 			// Case 2: both default and named are used
@@ -2939,4 +2898,4 @@ exports.bundle = bundle;
 exports.toAmd = toAmd;
 exports.toCjs = toCjs;
 exports.toUmd = toUmd;
-//# sourceMappingURL=/www/ESPERANTO/esperanto/.gobble-build/02-esperantoBundle/1/esperanto.js.map
+//# sourceMappingURL=/Users/tricknotes/src/github.com/esperantojs/esperanto/.gobble-build/02-esperantoBundle/1/esperanto.js.map
