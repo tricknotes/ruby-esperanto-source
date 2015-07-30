@@ -1,5 +1,5 @@
 /*
-	esperanto.js v0.7.3 - 2015-07-08
+	esperanto.js v0.7.4 - 2015-07-29
 	http://esperantojs.org
 
 	Released under the MIT License.
@@ -349,6 +349,15 @@ function findImportsAndExports(ast, source) {
 				// it's both an import and an export, e.g.
 				// `export { foo } from './bar';
 				passthrough = processImport(node, true);
+
+				passthrough.specifiers.forEach(function (e) {
+					// the import in `export { default } from 'foo';`
+					// is a default import
+					if (e.name === 'default') {
+						e.isDefault = true;
+					}
+				});
+
 				imports.push(passthrough);
 
 				declaration.passthrough = passthrough;
@@ -946,7 +955,7 @@ function resolveChains(modules, moduleLookup) {
 					return; // TODO can batch imports be chained?
 				}
 
-				origin[s.as] = s.name + '@' + imported.id;
+				origin[s.as] = '' + s.name + '@' + imported.id;
 			});
 		});
 
@@ -955,9 +964,9 @@ function resolveChains(modules, moduleLookup) {
 
 			x.specifiers.forEach(function (s) {
 				if (hasOwnProp.call(origin, s.name)) {
-					chains[s.as + '@' + mod.id] = origin[s.name];
+					chains['' + s.as + '@' + mod.id] = origin[s.name];
 				} else if (s.as !== s.name) {
-					chains[s.as + '@' + mod.id] = s.name + '@' + mod.id;
+					chains['' + s.as + '@' + mod.id] = '' + s.name + '@' + mod.id;
 				}
 			});
 		});
@@ -973,7 +982,7 @@ function resolveChains(modules, moduleLookup) {
 					return; // TODO can batch imports be chained?
 				}
 
-				setOrigin(s, s.name + '@' + imported.id, chains, moduleLookup);
+				setOrigin(s, '' + s.name + '@' + imported.id, chains, moduleLookup);
 			});
 		});
 
@@ -981,7 +990,7 @@ function resolveChains(modules, moduleLookup) {
 			if (!x.specifiers) return;
 
 			x.specifiers.forEach(function (s) {
-				setOrigin(s, s.as + '@' + mod.id, chains, moduleLookup);
+				setOrigin(s, '' + s.as + '@' + mod.id, chains, moduleLookup);
 			});
 		});
 	});
@@ -1166,9 +1175,9 @@ function populateIdentifierReplacements(bundle) {
 			var result = undefined;
 
 			if (x.hasDeclaration && x.name) {
-				result = hasOwnProp.call(conflicts, x.name) || otherModulesDeclare(mod, x.name) ? mod.name + '__' + x.name : x.name;
+				result = hasOwnProp.call(conflicts, x.name) || otherModulesDeclare(mod, x.name) ? '' + mod.name + '__' + x.name : x.name;
 			} else {
-				result = hasOwnProp.call(conflicts, mod.name) || x.value !== mod.name && ~mod.ast._topLevelNames.indexOf(mod.name) || otherModulesDeclare(mod, mod.name) ? mod.name + '__default' : mod.name;
+				result = hasOwnProp.call(conflicts, mod.name) || x.value !== mod.name && ~mod.ast._topLevelNames.indexOf(mod.name) || otherModulesDeclare(mod, mod.name) ? '' + mod.name + '__default' : mod.name;
 			}
 
 			mod.identifierReplacements['default'] = result;
@@ -1181,7 +1190,7 @@ function populateIdentifierReplacements(bundle) {
 		var moduleIdentifiers = mod.identifierReplacements;
 
 		mod.ast._topLevelNames.forEach(function (n) {
-			moduleIdentifiers[n] = hasOwnProp.call(conflicts, n) ? mod.name + '__' + n : n;
+			moduleIdentifiers[n] = hasOwnProp.call(conflicts, n) ? '' + mod.name + '__' + n : n;
 		});
 
 		mod.imports.forEach(function (x) {
@@ -1215,7 +1224,7 @@ function populateIdentifierReplacements(bundle) {
 						// if it's an external module, always use __default if the
 						// bundle also uses named imports
 						if (imported.isExternal) {
-							replacement = imported.needsNamed ? moduleName + '__default' : moduleName;
+							replacement = imported.needsNamed ? '' + moduleName + '__default' : moduleName;
 						}
 
 						// TODO We currently need to check for the existence of `mod`, because modules
@@ -1225,7 +1234,7 @@ function populateIdentifierReplacements(bundle) {
 							replacement = _mod.identifierReplacements['default'];
 						}
 					} else if (!imported.isExternal) {
-						replacement = hasOwnProp.call(conflicts, specifierName) ? moduleName + '__' + specifierName : specifierName;
+						replacement = hasOwnProp.call(conflicts, specifierName) ? '' + moduleName + '__' + specifierName : specifierName;
 					} else {
 						replacement = moduleName + '.' + specifierName;
 					}
@@ -2147,10 +2156,10 @@ function amdIntro(_ref) {
 		names.unshift('exports');
 	}
 
-	var intro = '\ndefine(' + processName(name) + processIds(ids) + 'function (' + names.join(', ') + ') {\n\n';
+	var intro = '\ndefine(' + processName(name) + '' + processIds(ids) + 'function (' + names.join(', ') + ') {\n\n';
 
 	if (useStrict) {
-		intro += indentStr + '\'use strict\';\n\n';
+		intro += '' + indentStr + '\'use strict\';\n\n';
 	}
 
 	return intro;
@@ -2183,7 +2192,7 @@ function cjs__cjs(mod, options) {
 
 	mod.imports.forEach(function (x) {
 		if (!hasOwnProp.call(seen, x.path)) {
-			var replacement = x.isEmpty ? req(x.path) + ';' : 'var ' + x.as + ' = ' + req(x.path) + ';';
+			var replacement = x.isEmpty ? '' + req(x.path) + ';' : 'var ' + x.as + ' = ' + req(x.path) + ';';
 			mod.body.replace(x.start, x.end, replacement);
 
 			seen[x.path] = true;
@@ -2253,7 +2262,7 @@ function umdIntro(_ref) {
 				names.unshift('exports');
 			}
 
-			amdExport = 'define(' + processName(amdName) + processIds(ids) + 'factory)';
+			amdExport = 'define(' + processName(amdName) + '' + processIds(ids) + 'factory)';
 			defaultsBlock = '';
 			if (externalDefaults && externalDefaults.length > 0) {
 				defaultsBlock = externalDefaults.map(function (x) {
@@ -2261,7 +2270,7 @@ function umdIntro(_ref) {
 				}).join('\n') + '\n\n';
 			}
 		} else {
-			amdExport = 'define(' + processName(amdName) + processIds(ids) + 'factory)';
+			amdExport = 'define(' + processName(amdName) + '' + processIds(ids) + 'factory)';
 			cjsExport = (hasExports ? 'module.exports = ' : '') + ('factory(' + paths.map(req).join(', ') + ')');
 			globalExport = (hasExports ? 'global.' + name + ' = ' : '') + ('factory(' + names.map(globalify).join(', ') + ')');
 
@@ -2446,7 +2455,8 @@ function utils_transformBody__transformBody(mod, body, options) {
 			if (!options._evilES3SafeReExports) {
 				earlyExports.push('Object.defineProperty(exports, \'' + exportAs + '\', { enumerable: true, get: function () { return ' + chains[name] + '; }});');
 			} else {
-				lateExports.push('exports.' + exportAs + ' = ' + chains[name] + ';');
+				var exportSegment = exportAs === 'default' ? '[\'default\']' : '.' + exportAs;
+				lateExports.push('exports' + exportSegment + ' = ' + chains[name] + ';');
 			}
 		} else if (~mod.ast._topLevelFunctionNames.indexOf(name)) {
 			// functions should be exported early, in
@@ -2510,7 +2520,7 @@ function strictMode_cjs__cjs(mod, options) {
 			seen[x.path] = true;
 
 			if (x.isEmpty) {
-				return req(x.path) + ';';
+				return '' + req(x.path) + ';';
 			}
 
 			return 'var ' + x.name + ' = ' + req(x.path) + ';';
@@ -2650,7 +2660,7 @@ function builders_strictMode_amd__amd(bundle, options) {
 		var defaultsBlock = externalDefaults.map(function (x) {
 			// Case 1: default is used, and named is not
 			if (!x.needsNamed) {
-				return x.name + ' = (\'default\' in ' + x.name + ' ? ' + x.name + '[\'default\'] : ' + x.name + ');';
+				return '' + x.name + ' = (\'default\' in ' + x.name + ' ? ' + x.name + '[\'default\'] : ' + x.name + ');';
 			}
 
 			// Case 2: both default and named are used
@@ -2898,4 +2908,4 @@ exports.bundle = bundle;
 exports.toAmd = toAmd;
 exports.toCjs = toCjs;
 exports.toUmd = toUmd;
-//# sourceMappingURL=/Users/tricknotes/src/github.com/esperantojs/esperanto/.gobble-build/02-esperantoBundle/1/esperanto.js.map
+//# sourceMappingURL=/Users/stefanpenner/src/esperanto/.gobble-build/02-esperantoBundle/1/esperanto.js.map
